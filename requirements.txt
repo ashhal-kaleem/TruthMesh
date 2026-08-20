@@ -51,7 +51,7 @@ python-jose[cryptography]
 passlib[bcrypt]
 bcrypt<5  # passlib 1.7.x incompatible with bcrypt 5.x
 
-# Vector store (production — set VECTOR_BACKEND=chromadb to activate)
-# chromadb
-# sentence-transformers
-# Install manually for prod: pip install chromadb sentence-transformers
+# Vector store (production — set VECTOR_BACKEND=pgvector to activate)
+# Requires DATABASE_URL pointing to a PostgreSQL instance with pgvector
+# (e.g. Supabase) and GOOGLE_API_KEY.
+# No extra pip packages needed (uses psycopg2-binary & google-generativeai).

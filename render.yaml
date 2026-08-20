@@ -14,7 +14,7 @@ services:
       - key: JWT_SECRET_KEY
         generateValue: true
       - key: VECTOR_BACKEND
-        value: fake    # Change to 'chromadb' after mounting a persistent disk
+        value: pgvector
       - key: ENVIRONMENT
         value: production
       - key: CORS_ORIGINS

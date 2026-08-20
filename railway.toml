@@ -7,3 +7,6 @@ healthcheckPath = "/"
 healthcheckTimeout = 300
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
+
+[env]
+VECTOR_BACKEND = "pgvector"
