@@ -19,6 +19,7 @@ Article relevance extraction inside retrieve.py is now deterministic
 import os
 import json
 import logging
+import base64
 from typing import List, TypedDict, Annotated
 
 from dotenv import load_dotenv
@@ -45,6 +46,7 @@ load_dotenv()
 class AgentState(TypedDict):
     """Flat state dict threaded through the three pipeline nodes."""
     claim: str              # original user claim (set at START)
+    image: str              # optional image path or base64 data
     plan: dict              # output of plan_node  {subclaims_with_queries: [...]}
     evidence: dict          # output of evidence_node {subclaims_with_query_evidence: [...]}
     verdict: dict           # output of verdict_node  {label, explanation}
@@ -103,9 +105,29 @@ class FactAgent:
         Output: Plan {subclaims_with_queries: [{subclaim, queries}, ...]}
         """
         claim = state["claim"]
+        image = state.get("image")
+        
+        if image:
+            if os.path.exists(image):
+                with open(image, "rb") as image_file:
+                    encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+                    # determine mime type simply based on extension for this mock
+                    ext = image.lower().split('.')[-1]
+                    mime_type = f"image/{ext}" if ext in ["png", "jpeg", "jpg", "webp"] else "image/jpeg"
+                    image_url = f"data:{mime_type};base64,{encoded_string}"
+            else:
+                image_url = image
+
+            human_content = [
+                {"type": "text", "text": f"Claim to fact-check:\n{claim}"},
+                {"type": "image_url", "image_url": {"url": image_url}},
+            ]
+        else:
+            human_content = f"Claim to fact-check:\n{claim}"
+
         messages = [
             SystemMessage(content=plan_prompt),
-            HumanMessage(content=f"Claim to fact-check:\n{claim}"),
+            HumanMessage(content=human_content),
         ]
         plan_obj: Plan = self.llm.with_structured_output(Plan).invoke(messages)
 
@@ -297,6 +319,7 @@ class FactAgent:
     def process_claim(
         self,
         claim: str,
+        image: str = None,
         recursion_limit: int = 50,
         verbose: bool = False,
     ) -> dict:
@@ -313,6 +336,7 @@ class FactAgent:
         """
         initial_state: AgentState = {
             "claim": claim,
+            "image": image,
             "plan": {},
             "evidence": {},
             "verdict": {},

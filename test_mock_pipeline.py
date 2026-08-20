@@ -121,7 +121,7 @@ with patch.object(ChatGoogleGenerativeAI, "_generate", fake_generate):
         _call_count = 0
         _call_log = []
         
-        print(f"Running mocked 3-call pipeline for target label: {target_label}...\n")
+        print(f"Running mocked 3-call pipeline for target label: {target_label} (Text only)...\n")
         result = agent.process_claim(claim, verbose=False)
 
         print("\n=== Result ===")
@@ -135,23 +135,46 @@ with patch.object(ChatGoogleGenerativeAI, "_generate", fake_generate):
 
         # ── Assertions ────────────────────────────────────────────────────────────────
         errors = []
-
         if _call_count != 3:
             errors.append(f"Expected 3 Gemini calls, got {_call_count}")
-
         if result.get("label") != target_label:
             errors.append(f"Expected label='{target_label}', got '{result.get('label')}'")
-
         if not result.get("explanation"):
             errors.append("Missing explanation in result")
 
         if errors:
-            print(f"\n[FAIL] for label {target_label}")
+            print(f"\n[FAIL] for label {target_label} (Text only)")
             for e in errors:
                 print(f"  ✗ {e}")
             sys.exit(1)
         else:
-            print(f"\n[PASS] Exactly 3 Gemini calls, correct label, explanation present for {target_label}.")
+            print(f"\n[PASS] Exactly 3 Gemini calls, correct label, explanation present for {target_label} (Text only).")
+            print("-" * 40)
+
+        # ── Test with Image ───────────────────────────────────────────────────────────
+        _call_index = 0
+        _call_count = 0
+        _call_log = []
+        image_path = os.path.join(os.path.dirname(__file__), "fact-check.png")
+        
+        print(f"Running mocked 3-call pipeline for target label: {target_label} (With Image)...\n")
+        result_with_img = agent.process_claim(claim, image=image_path, verbose=False)
+
+        errors_img = []
+        if _call_count != 3:
+            errors_img.append(f"Expected 3 Gemini calls, got {_call_count}")
+        if result_with_img.get("label") != target_label:
+            errors_img.append(f"Expected label='{target_label}', got '{result_with_img.get('label')}'")
+        if not result_with_img.get("explanation"):
+            errors_img.append("Missing explanation in result")
+
+        if errors_img:
+            print(f"\n[FAIL] for label {target_label} (With Image)")
+            for e in errors_img:
+                print(f"  ✗ {e}")
+            sys.exit(1)
+        else:
+            print(f"\n[PASS] Exactly 3 Gemini calls, correct label, explanation present for {target_label} (With Image).")
             print("-" * 40)
 
 print("\n=== All Mock pipeline tests PASSED ===")
