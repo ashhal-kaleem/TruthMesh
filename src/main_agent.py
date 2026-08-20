@@ -25,8 +25,6 @@ from typing import List, TypedDict, Annotated
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, BaseMessage
 from langchain_core.documents import Document
-from langchain_core.vectorstores import InMemoryVectorStore
-from langchain_community.embeddings import FakeEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langgraph.prebuilt import create_react_agent
@@ -40,6 +38,7 @@ from src.prompts.evidence_seeking import (
 )
 from src.prompts.verdict_prediction import VerdictPrediction, verdict_prediction_prompt
 from src.tools.retrieve import search_retrieve_news
+from src.vector_store import create_vector_store
 
 load_dotenv()
 
@@ -86,8 +85,8 @@ class FactAgent:
             temperature=temperature,
         )
 
-        self.embeddings = FakeEmbeddings(size=768)
-        self.vector_store = InMemoryVectorStore(embedding=self.embeddings)
+        self.embeddings = None  # managed by vector_store module
+        self.vector_store = create_vector_store()
 
         # The only ReAct agent — used inside evidence_node.
         # It is the sole agentic component: it decides when evidence is

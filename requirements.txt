@@ -41,3 +41,17 @@ urllib3
 fastapi
 uvicorn
 python-multipart
+
+# Database (PostgreSQL + ORM)
+sqlalchemy
+psycopg2-binary
+
+# Authentication
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt<5  # passlib 1.7.x incompatible with bcrypt 5.x
+
+# Vector store (production — set VECTOR_BACKEND=chromadb to activate)
+# chromadb
+# sentence-transformers
+# Install manually for prod: pip install chromadb sentence-transformers
