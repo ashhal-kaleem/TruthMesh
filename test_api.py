@@ -112,3 +112,28 @@ def test_check_claim_with_image():
     data = response.json()
     assert data["label"] == "SUPPORT"
     assert data["claim"] == "Claim with image."
+    assert "explanation" in data
+    assert "plan" in data
+    assert "evidence" in data
+
+def test_missing_claim_validation_error():
+    # Should fail if 'claim' form data is missing
+    response = client.post("/check_claim", data={})
+    assert response.status_code == 422
+    assert "detail" in response.json()
+
+def test_cors_headers():
+    # Test that CORS headers are set (since we allow all origins in api.py)
+    response = client.options(
+        "/check_claim",
+        headers={
+            "Origin": "https://vercel.app",
+            "Access-Control-Request-Method": "POST",
+        }
+    )
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == "https://vercel.app"
+
+def test_invalid_route():
+    response = client.get("/invalid_route_that_does_not_exist")
+    assert response.status_code == 404
