@@ -1,20 +1,101 @@
-from typing import List, Literal, Any
-from pydantic import BaseModel, Field
-from langchain_core.prompts.few_shot import FewShotPromptTemplate
-from langchain_core.prompts.prompt import PromptTemplate
+"""
+input_ingestion.py
+──────────────────
+Defines the combined Plan schema and prompt used by plan_node.
 
-# ── Base mixin so dict-style access still works in main_agent.py ──────────────
+A single Gemini call now replaces the four previously separate nodes:
+  claim_decomposition → claim_classification → claim_splitter → query_generation
+
+The Plan schema captures everything needed to drive evidence retrieval:
+  - subclaims : verifiable predicate-form sub-facts extracted from the claim
+  - queries   : 2-3 search questions per subclaim
+"""
+
+from typing import Any, Dict, List
+from pydantic import BaseModel, Field
+
+
 class _GetItem:
     def __getitem__(self, key: str) -> Any:
         return getattr(self, key)
 
-# ── Pydantic schemas (replace old OpenAI-style dicts) ────────────────────────
+
+# ── Combined output schema ─────────────────────────────────────────────────────
+
+class SubclaimWithQueries(BaseModel):
+    subclaim: str = Field(
+        description=(
+            "A single verifiable predicate derived from the main claim, "
+            "written in the form 'Predicate(Subject, Object) ::: Verification goal'."
+        )
+    )
+    queries: List[str] = Field(
+        description=(
+            "2-3 focused Google search questions that would surface evidence "
+            "to confirm or refute this subclaim."
+        )
+    )
+
+
+class Plan(_GetItem, BaseModel):
+    subclaims_with_queries: List[SubclaimWithQueries] = Field(
+        description=(
+            "All verifiable subclaims extracted from the claim, each paired "
+            "with search questions.  Non-verifiable subclaims (opinions, "
+            "future events, hypotheticals) are excluded."
+        )
+    )
+
+
+# ── Prompt ────────────────────────────────────────────────────────────────────
+
+plan_prompt = """\
+You are a fact-checking assistant.  Given an input claim, perform three steps
+in a single pass and return structured JSON.
+
+STEP 1 — DECOMPOSE
+  Break the claim into atomic predicate-form subclaims.
+  Use the notation:  Predicate(Subject, Object) ::: Verification goal
+  Example:
+    Claim: "Howard University Hospital and Providence Hospital are both in DC."
+    Subclaims:
+      Location(Howard_University_Hospital, Washington_DC)
+        ::: Verify Howard University Hospital is in Washington DC
+      Location(Providence_Hospital, Washington_DC)
+        ::: Verify Providence Hospital is in Washington DC
+
+STEP 2 — FILTER
+  Discard any subclaim that is:
+    • a subjective opinion or value judgment
+    • about a future or hypothetical event
+    • vague / unverifiable by public sources
+  Keep only subclaims that assert checkable facts about the world.
+  If NO subclaims survive, return a single entry:
+    subclaim: "NON_VERIFIABLE" and queries: []
+
+STEP 3 — GENERATE QUERIES
+  For each surviving subclaim write 2-3 distinct Google search questions.
+  Guidelines:
+    • Use specific entity names and relationships from the subclaim.
+    • Vary phrasing — include synonyms and alternative angles.
+    • Keep each question concise and self-contained.
+
+Return ONLY the JSON object matching the schema.  No preamble or explanation.
+"""
+
+
+# ── Legacy re-exports (kept so existing experiment code doesn't break) ─────────
+# These schemas are no longer used by main_agent but may be referenced in
+# src/experiments/*.py or evaluation scripts.
+
+from langchain_core.prompts.few_shot import FewShotPromptTemplate  # noqa: F401
+from langchain_core.prompts.prompt import PromptTemplate            # noqa: F401
+from typing import Literal
 
 class ClaimDecomposition(_GetItem, BaseModel):
-    subclaims: List[str] = Field(description="The subclaims derived from the input claim.")
+    subclaims: List[str] = Field(description="Subclaims derived from the input claim.")
 
 claim_decomposition = ClaimDecomposition
-
 
 class SubclaimTypeItem(BaseModel):
     subclaim: str
@@ -22,65 +103,19 @@ class SubclaimTypeItem(BaseModel):
 
 class ClaimClassification(_GetItem, BaseModel):
     subclaim_type_dict: List[SubclaimTypeItem] = Field(
-        description="A list of subclaims with their classification types."
+        description="Subclaims with classification types."
     )
 
 claim_classification = ClaimClassification
 
-
 class ClaimSplitting(_GetItem, BaseModel):
     subclaims: List[str] = Field(
-        description="The verifiable subclaims after filtering out non-verifiable subclaims."
+        description="Verifiable subclaims after filtering."
     )
 
 claim_splitting = ClaimSplitting
 
-
-# ── Prompts and examples (unchanged) ─────────────────────────────────────────
-
-claim_decomposition_examples = [
-    {
-        "input_claim": "Howard University Hospital and Providence Hospital are both located in Washington, D.C.",
-        "subclaims": [
-            "Location(Howard_University_Hospital, Washington_D.C.) ::: Verify Howard University Hospital is located in Washington, D.C",
-            "Location(Providence_Hospital, Washington_D.C.) ::: Verify Providence Hospital is located in Washington, D.C",
-        ],
-    },
-    {
-        "input_claim": "In 1959, former Chilean boxer Alfredo Cornejo Cuevas (born June 6, 1933) won the gold medal in the welterweight division at the Pan American Games (held in Chicago, United States, from August 27 to September 7) in Chicago, United States, and the world amateur welterweight title in Mexico City.",
-        "subclaims": [
-            "Born(Alfredo_Cornejo_Cuevas, June 6 1933) ::: Verify that Alfredo Cornejo Cuevas was born June 6, 1933.",
-            "Won(Alfredo_Cornejo_Cuevas, the gold medal in the welterweight division at the Pan American Games in 1959) ::: Verify that Alfredo Cornejo Cuevas won the gold medal in the welterweight division at the Pan American Games in 1959.",
-            "Held(The Pan American Games in 1959, Chicago United States) ::: Verify that the Pan American Games in 1959 were held in Chicago, United States.",
-            "Won(Alfredo_Cornejo_Cuevas, the world amateur welterweight title in Mexico City) ::: Verify that Alfredo Cornejo Cuevas won the world amateur welterweight title in Mexico City."
-        ],
-    },
-]
-
-claim_decomposition_prompt = f"""
-You are given a problem description and a claim. The task is to define all the predicates in the claim and return them in JSON format, as shown in the example below.
-Here are examples:
-{claim_decomposition_examples}
-"""
-
-claim_classification_prompt = """
-You are an expert in claim verification. Your task is to determine whether a given claim is verifiable or non-verifiable.
-A verifiable claim is a factual statement that can be checked against objective evidence from reliable sources. It makes specific assertions about the world that can be proven true or false through investigation.
-
-A non-verifiable claim is one that cannot be objectively verified because it:
-- Expresses a subjective opinion, preference, or personal experience  
-- Makes vague or ambiguous statements without specific details  
-- Refers to future events that haven't occurred yet  
-- Makes normative or ethical judgments about what "should" be  
-- Contains hypothetical scenarios or counterfactuals  
-
-### Examples:
-Verifiable: "The average global temperature increased by 0.8$^\\circ$C between 1880 and 2012." 
-Non-verifiable: "Climate change is the most important issue facing humanity today."  
-Verifiable: "The film 'Parasite' won the Academy Award for Best Picture in 2020."  
-Non-verifiable: "Parasite deserved to win the Academy Award for Best Picture."
-
-Please analyze the following claim and classify it as either VERIFIABLE or NON-VERIFIABLE. Provide a brief explanation for your classification.
-"""
-
-claim_splitter_prompt = "Filter out the non-verifiable claims. If there is no verifiable fact, return NON-SUPPORTED."
+claim_decomposition_prompt = ""  # superseded by plan_prompt
+claim_classification_prompt = ""  # superseded by plan_prompt
+claim_splitter_prompt = ""         # superseded by plan_prompt
+claim_decomposition_examples = []  # kept for any direct reference
