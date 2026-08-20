@@ -1,10 +1,11 @@
 """
 test_init.py — zero-API-call instantiation + call-count instrumentation.
-Run from P:\\FactAgent:  python test_init.py
+Run from P:\FactAgent:  python test_init.py
 """
 import sys
 import os
-sys.path.insert(0, os.path.dirname(__file__))
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from dotenv import load_dotenv
 load_dotenv()

@@ -9,11 +9,15 @@ the schemas expected by plan_node, evidence_node and verdict_node.  The test:
 
 Run:  python P:\\FactAgent\\test_mock_pipeline.py
 """
-import sys, os, json, re
-sys.path.insert(0, os.path.dirname(__file__))
+import sys
+import os
+import json
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from dotenv import load_dotenv
-load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
 
 from unittest.mock import MagicMock, patch
 from langchain_core.messages import AIMessage
@@ -155,7 +159,7 @@ with patch.object(ChatGoogleGenerativeAI, "_generate", fake_generate):
         _call_index = 0
         _call_count = 0
         _call_log = []
-        image_path = os.path.join(os.path.dirname(__file__), "fact-check.png")
+        image_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "fact-check.png")
         
         print(f"Running mocked 3-call pipeline for target label: {target_label} (With Image)...\n")
         result_with_img = agent.process_claim(claim, image=image_path, verbose=False)

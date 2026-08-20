@@ -38,10 +38,10 @@ from fastapi.testclient import TestClient
 from unittest.mock import patch
 
 # ── conftest.py has already set env vars before this import ──────────────────
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from dotenv import load_dotenv
-load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
 
 from src.api import app
 from src.database import drop_db, init_db
@@ -58,7 +58,7 @@ def setup_test_db():
     yield
     drop_db()
     # Remove SQLite file (best-effort; ignore if locked)
-    db_path = os.path.join(os.path.dirname(__file__), "test_factagent.db")
+    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "test_factagent.db")
     try:
         if os.path.exists(db_path):
             os.remove(db_path)
@@ -185,7 +185,7 @@ def test_check_claim_text_only_schema(client):
 
 @patch.object(ChatGoogleGenerativeAI, "_generate", fake_generate)
 def test_check_claim_with_image(client):
-    img_path = os.path.join(os.path.dirname(__file__), "fact-check.png")
+    img_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "fact-check.png")
     with open(img_path, "rb") as f:
         resp = client.post(
             "/check_claim",
