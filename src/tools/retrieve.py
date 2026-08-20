@@ -186,20 +186,36 @@ class SearchEngineRetriever:
                         search_query, sentences
                     )
                     if relevant:
-                        retrieved_doc = (
-                            f"Article Title: {title}\n"
-                            f"Google Snippet: {snippet}\n"
-                            f"Relevant Content:\n{relevant}"
-                        )
+                        parsed_domain = urllib.parse.urlparse(url).netloc.lower()
+                        if parsed_domain.startswith('www.'):
+                            parsed_domain = parsed_domain[4:]
+                        entry = MEDIA_BIAS_DICT.get(parsed_domain)
+                        
+                        retrieved_doc = json.dumps({
+                            "url": url,
+                            "title": title,
+                            "excerpt": relevant,
+                            "credibility_score": entry.get("factual", "Unknown") if entry else "Unknown",
+                            "bias_label": entry.get("bias", "Unknown") if entry else "Unknown"
+                        })
                 if retrieved_doc:
                     break
 
             if not retrieved_doc and link_chosen != -1:
                 r = search_server_resp[link_chosen]
-                retrieved_doc = (
-                    f"Article Title: {r.get('title', '')}\n"
-                    f"Google Snippet: {r.get('snippet', ' ')}"
-                )
+                fallback_url = r.get('link', '')
+                parsed_domain = urllib.parse.urlparse(fallback_url).netloc.lower()
+                if parsed_domain.startswith('www.'):
+                    parsed_domain = parsed_domain[4:]
+                entry = MEDIA_BIAS_DICT.get(parsed_domain)
+
+                retrieved_doc = json.dumps({
+                    "url": fallback_url,
+                    "title": r.get('title', ''),
+                    "excerpt": r.get('snippet', ' '),
+                    "credibility_score": entry.get("factual", "Unknown") if entry else "Unknown",
+                    "bias_label": entry.get("bias", "Unknown") if entry else "Unknown"
+                })
 
         return retrieved_doc
 

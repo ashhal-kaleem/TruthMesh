@@ -163,7 +163,7 @@ class FactAgent:
             f"matching this exact structure:\n"
             f'{{"subclaims_with_query_evidence": ['
             f'{{"subclaim": "...", "queries_with_evidence": ['
-            f'{{"query": "...", "evidence": "..."}}]}}]}}'
+            f'{{"query": "...", "evidence": [ {{"url": "...", "title": "...", "excerpt": "...", "credibility_score": "...", "bias_label": "..."}} ]}}]}}]}}'
         )
 
         # Cap the recursion: 2 steps per query (think + tool) + buffer
@@ -227,7 +227,7 @@ class FactAgent:
         result = []
         for sq in fallback_plan:
             queries_with_evidence = [
-                {"query": q, "evidence": text}
+                {"query": q, "evidence": [{"url": "Unknown", "title": "Unknown", "excerpt": text, "credibility_score": "Unknown", "bias_label": "Unknown"}]}
                 for q in sq.get("queries", [])
             ]
             result.append({

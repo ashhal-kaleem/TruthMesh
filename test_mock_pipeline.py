@@ -42,7 +42,15 @@ EVIDENCE_RESPONSE = json.dumps({
             "queries_with_evidence": [
                 {
                     "query": "Where is the Eiffel Tower located?",
-                    "evidence": "The Eiffel Tower is a wrought-iron lattice tower on the Champ de Mars in Paris, France."
+                    "evidence": [
+                        {
+                            "url": "https://example.com/eiffel-tower",
+                            "title": "Eiffel Tower History",
+                            "excerpt": "The Eiffel Tower is a wrought-iron lattice tower on the Champ de Mars in Paris, France.",
+                            "credibility_score": "High",
+                            "bias_label": "Least Biased"
+                        }
+                    ]
                 }
             ]
         },
@@ -51,7 +59,15 @@ EVIDENCE_RESPONSE = json.dumps({
             "queries_with_evidence": [
                 {
                     "query": "When was the Eiffel Tower built?",
-                    "evidence": "The Eiffel Tower was constructed from 1887 to 1889 as the centerpiece of the 1889 World's Fair."
+                    "evidence": [
+                        {
+                            "url": "https://example.com/eiffel-tower-history",
+                            "title": "Eiffel Tower Construction",
+                            "excerpt": "The Eiffel Tower was constructed from 1887 to 1889 as the centerpiece of the 1889 World's Fair.",
+                            "credibility_score": "High",
+                            "bias_label": "Least Biased"
+                        }
+                    ]
                 }
             ]
         }

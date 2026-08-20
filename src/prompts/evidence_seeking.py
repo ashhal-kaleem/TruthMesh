@@ -5,9 +5,16 @@ class _GetItem:
     def __getitem__(self, key: str) -> Any:
         return getattr(self, key)
 
+class EvidenceItem(BaseModel):
+    url: str = Field(description="The URL of the evidence source.")
+    title: str = Field(description="The title of the article or page.")
+    excerpt: str = Field(description="The relevant content extracted from the source.")
+    credibility_score: str = Field(description="The credibility score of the source domain.")
+    bias_label: str = Field(description="The political or ideological bias of the source domain.")
+
 class QueryWithEvidence(BaseModel):
     query: str = Field(description="A query generated to seek evidence for the subclaim.")
-    evidence: str = Field(description="All evidences retrieved for the query.")
+    evidence: List[EvidenceItem] = Field(description="All evidences retrieved for the query.")
 
 class SubclaimWithQueryEvidence(BaseModel):
     subclaim: str = Field(description="A subclaim derived from the main claim.")
