@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: factagent-api
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn src.api:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: factagent-db
+          property: connectionString
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: VECTOR_BACKEND
+        value: fake    # Change to 'chromadb' after mounting a persistent disk
+      - key: ENVIRONMENT
+        value: production
+      - key: CORS_ORIGINS
+        value: "*"     # Replace with your Vercel URL in production
+
+databases:
+  - name: factagent-db
+    plan: free
+    databaseName: factagent
