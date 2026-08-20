@@ -1,0 +1,38 @@
+# Core dependencies
+numpy
+pandas
+scikit-learn
+tqdm
+matplotlib
+seaborn
+
+# Web scraping and search tools
+requests
+beautifulsoup4
+python-whois
+selenium
+
+# LLM API clients
+google-generativeai
+google-genai
+ollama
+
+# LLM frameworks
+langchain
+langgraph
+langchain-google-genai
+langchain-community
+
+# Utilities and configuration
+python-dotenv
+pydantic
+jsonlines
+tenacity
+pyyaml
+
+# Academic search and citation tools
+scholarly
+biopython
+
+# Additional utilities
+urllib3
