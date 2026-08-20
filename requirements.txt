@@ -36,3 +36,8 @@ biopython
 
 # Additional utilities
 urllib3
+
+# API Backend
+fastapi
+uvicorn
+python-multipart
