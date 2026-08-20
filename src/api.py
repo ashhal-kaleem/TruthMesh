@@ -1,69 +1,122 @@
 """
-api.py — FactAgent FastAPI Backend
-────────────────────────────────────────────────
-Exposes the 3-call FactAgent pipeline over HTTP.
-Returns a consistent, frontend-ready JSON schema.
+api.py — FactAgent FastAPI Backend (v3 — production-ready)
+──────────────────────────────────────────────────────────
 
-Endpoints:
+Architecture:
+  POST /auth/register   — create account, return JWT
+  POST /auth/login      — verify credentials, return JWT
+  GET  /me/history      — authenticated user's past claims (paginated)
   GET  /                — health check
-  POST /check_claim     — text claim + optional image upload → FactCheckResponse
+  POST /check_claim     — text + optional image → FactCheckResponse (auth optional)
+
+Every successfully fact-checked claim is persisted to PostgreSQL.
+Anonymous requests are stored without a user_id.
+The RAG vector store is initialised once at startup via `create_vector_store()`.
 """
 
 import base64
-from typing import Optional, List
+import os
+from contextlib import asynccontextmanager
+from typing import List, Optional
 
-from fastapi import FastAPI, Form, UploadFile, File
+from fastapi import Depends, FastAPI, Form, HTTPException, Query, UploadFile, File, status
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy.orm import Session
 
+from src.auth import (
+    create_access_token,
+    get_current_user,
+    hash_password,
+    require_current_user,
+    verify_password,
+)
+from src.database import (
+    ClaimRecord,
+    EvidenceCitationRecord,
+    User,
+    drop_db,
+    get_db,
+    init_db,
+)
 from src.main_agent import FactAgent
+
+# ── Lifespan ──────────────────────────────────────────────────────────────────
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup — create DB tables and warm up agent
+    init_db()
+    yield
+    # Shutdown — nothing required
 
 app = FastAPI(
     title="FactAgent API",
-    description="Fact-checking pipeline — 3-call architecture, multimodal, RAG-backed.",
-    version="2.0.0",
+    description="Fact-checking pipeline — 3-call architecture, multimodal, RAG, auth.",
+    version="3.0.0",
+    lifespan=lifespan,
 )
 
-# ── CORS — allow any Vercel/frontend origin ───────────────────────────────────
+# ── CORS ──────────────────────────────────────────────────────────────────────
+_allowed_origins = os.getenv("CORS_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # Tighten to specific origins in production
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ── Response schema ───────────────────────────────────────────────────────────
+# ── Global agent (initialised once at startup) ────────────────────────────────
+agent = FactAgent(dataset="feverous")
+
+
+# ── Request / Response schemas ────────────────────────────────────────────────
+
+class RegisterRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=64)
+    email: str = Field(min_length=5, max_length=255)
+    password: str = Field(min_length=8, max_length=128)
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
 
 class EvidenceCitation(BaseModel):
-    """A single piece of retrieved evidence with source metadata."""
-    url: str = Field(description="Source URL")
-    title: str = Field(description="Article or page title")
-    excerpt: str = Field(description="Relevant snippet from the source")
-    credibility_score: str = Field(description="Credibility rating (High / Medium / Low / Unknown)")
-    bias_label: str = Field(description="Media-bias classification of the source")
+    url: str
+    title: str
+    excerpt: str
+    credibility_score: str
+    bias_label: str
 
 
 class FactCheckResponse(BaseModel):
-    """Canonical frontend-ready response for a fact-check request."""
-    claim: str = Field(description="The original claim that was fact-checked")
+    claim: str
     verdict: str = Field(description="SUPPORT | REFUTE | UNCERTAIN")
-    confidence: float = Field(
-        description="Confidence score 0.0–1.0, derived from evidence credibility"
-    )
-    reasoning: str = Field(
-        description="Natural-language explanation justifying the verdict"
-    )
-    evidence_citations: List[EvidenceCitation] = Field(
-        default_factory=list,
-        description="All evidence items collected during retrieval"
-    )
-    image_analyzed: bool = Field(
-        description="Whether an image was provided and forwarded to the vision model"
-    )
-    past_context_used: bool = Field(
-        description="Whether the RAG layer surfaced prior matching claims"
-    )
+    confidence: float = Field(description="0.0 – 1.0, derived from evidence credibility")
+    reasoning: str
+    evidence_citations: List[EvidenceCitation] = Field(default_factory=list)
+    image_analyzed: bool
+    past_context_used: bool
+
+
+class ClaimHistoryItem(BaseModel):
+    id: int
+    claim_text: str
+    verdict: str
+    confidence: float
+    reasoning: str
+    image_analyzed: bool
+    past_context_used: bool
+    created_at: str
+    citations: List[EvidenceCitation] = Field(default_factory=list)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -75,82 +128,191 @@ _CREDIBILITY_SCORE_MAP = {
     "unknown": 0.4,
 }
 
+
 def _compute_confidence(verdict: str, evidence: dict) -> float:
-    """
-    Derive a deterministic confidence score without an extra LLM call.
-    Logic:
-      1. Collect credibility scores from all evidence items (default 0.4).
-      2. Average them to get base_confidence.
-      3. UNCERTAIN verdict → cap at 0.55; REFUTE → invert slightly (1 - avg * 0.9).
-    """
     scores: List[float] = []
     for subclaim in evidence.get("subclaims_with_query_evidence", []):
         for qe in subclaim.get("queries_with_evidence", []):
             for item in qe.get("evidence", []):
                 raw = item.get("credibility_score", "Unknown").lower()
                 scores.append(_CREDIBILITY_SCORE_MAP.get(raw, 0.4))
-
     base = sum(scores) / len(scores) if scores else 0.5
-
     if verdict == "UNCERTAIN":
         return round(min(base, 0.55), 3)
-    if verdict == "REFUTE":
-        # High-credibility REFUTE is still high-confidence
-        return round(base, 3)
-    # SUPPORT
     return round(base, 3)
 
 
 def _extract_citations(evidence: dict) -> List[EvidenceCitation]:
-    """Flatten nested evidence structure into a deduplicated citation list."""
-    seen_urls: set = set()
+    seen: set = set()
     citations: List[EvidenceCitation] = []
     for subclaim in evidence.get("subclaims_with_query_evidence", []):
         for qe in subclaim.get("queries_with_evidence", []):
             for item in qe.get("evidence", []):
                 url = item.get("url", "")
-                if url in seen_urls:
+                if url in seen:
                     continue
-                seen_urls.add(url)
-                citations.append(
-                    EvidenceCitation(
-                        url=url,
-                        title=item.get("title", ""),
-                        excerpt=item.get("excerpt", ""),
-                        credibility_score=item.get("credibility_score", "Unknown"),
-                        bias_label=item.get("bias_label", "Unknown"),
-                    )
-                )
+                seen.add(url)
+                citations.append(EvidenceCitation(
+                    url=url,
+                    title=item.get("title", ""),
+                    excerpt=item.get("excerpt", ""),
+                    credibility_score=item.get("credibility_score", "Unknown"),
+                    bias_label=item.get("bias_label", "Unknown"),
+                ))
     return citations
 
 
-# ── Global agent ─────────────────────────────────────────────────────────────
-# Initialised once at startup; all requests share this instance.
-agent = FactAgent(dataset="feverous")
+def _save_claim_to_db(
+    db: Session,
+    *,
+    user_id: Optional[int],
+    claim: str,
+    verdict: str,
+    confidence: float,
+    reasoning: str,
+    image_analyzed: bool,
+    past_context_used: bool,
+    citations: List[EvidenceCitation],
+) -> ClaimRecord:
+    record = ClaimRecord(
+        user_id=user_id,
+        claim_text=claim,
+        verdict=verdict,
+        confidence=confidence,
+        reasoning=reasoning,
+        image_analyzed=image_analyzed,
+        past_context_used=past_context_used,
+    )
+    db.add(record)
+    db.flush()   # get record.id without committing
+
+    for cite in citations:
+        db.add(EvidenceCitationRecord(
+            claim_id=record.id,
+            url=cite.url,
+            title=cite.title,
+            excerpt=cite.excerpt,
+            credibility_score=cite.credibility_score,
+            bias_label=cite.bias_label,
+        ))
+
+    db.commit()
+    db.refresh(record)
+    return record
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
+# ── Auth endpoints ─────────────────────────────────────────────────────────────
+
+@app.post("/auth/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+def register(req: RegisterRequest, db: Session = Depends(get_db)):
+    """Register a new user account and return a JWT."""
+    if db.query(User).filter(User.username == req.username).first():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Username '{req.username}' is already taken",
+        )
+    if db.query(User).filter(User.email == req.email).first():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with this email already exists",
+        )
+    user = User(
+        username=req.username,
+        email=req.email,
+        hashed_password=hash_password(req.password),
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    token = create_access_token(user.id, user.username)
+    return TokenResponse(access_token=token)
+
+
+@app.post("/auth/login", response_model=TokenResponse)
+def login(req: LoginRequest, db: Session = Depends(get_db)):
+    """Authenticate and return a JWT."""
+    user = db.query(User).filter(User.username == req.username).first()
+    if not user or not verify_password(req.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+        )
+    token = create_access_token(user.id, user.username)
+    return TokenResponse(access_token=token)
+
+
+# ── History endpoint ──────────────────────────────────────────────────────────
+
+@app.get("/me/history", response_model=List[ClaimHistoryItem])
+def my_history(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_current_user),
+):
+    """Return the authenticated user's claim history, newest first (paginated)."""
+    user_id = int(current_user["sub"])
+    offset = (page - 1) * page_size
+    records = (
+        db.query(ClaimRecord)
+        .filter(ClaimRecord.user_id == user_id)
+        .order_by(ClaimRecord.created_at.desc())
+        .offset(offset)
+        .limit(page_size)
+        .all()
+    )
+    return [
+        ClaimHistoryItem(
+            id=r.id,
+            claim_text=r.claim_text,
+            verdict=r.verdict,
+            confidence=r.confidence,
+            reasoning=r.reasoning,
+            image_analyzed=r.image_analyzed,
+            past_context_used=r.past_context_used,
+            created_at=r.created_at.isoformat(),
+            citations=[
+                EvidenceCitation(
+                    url=c.url,
+                    title=c.title,
+                    excerpt=c.excerpt,
+                    credibility_score=c.credibility_score,
+                    bias_label=c.bias_label,
+                )
+                for c in r.citations
+            ],
+        )
+        for r in records
+    ]
+
+
+# ── Health check ──────────────────────────────────────────────────────────────
 
 @app.get("/")
 def health_check():
-    return {"status": "ok", "message": "FactAgent API is running.", "version": "2.0.0"}
+    return {
+        "status": "ok",
+        "message": "FactAgent API is running.",
+        "version": "3.0.0",
+    }
 
+
+# ── Fact-check endpoint ───────────────────────────────────────────────────────
 
 @app.post("/check_claim", response_model=FactCheckResponse)
 async def check_claim(
     claim: str = Form(...),
     image: Optional[UploadFile] = File(None),
+    db: Session = Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user),
 ):
     """
     Fact-check a text claim, optionally accompanied by an image.
 
-    - **claim**: The statement to verify.
-    - **image**: Optional image upload (PNG / JPEG / WEBP).
-
-    Returns a `FactCheckResponse` with verdict, confidence, reasoning,
-    deduplicated evidence citations, and provenance flags.
+    Authentication is **optional** — anonymous requests are stored without
+    a user_id and are not accessible via /me/history.
     """
-    # ── Handle optional image ──────────────────────────────────────────────────
+    # ── Handle optional image ─────────────────────────────────────────────────
     image_base64: Optional[str] = None
     if image:
         content = await image.read()
@@ -160,17 +322,30 @@ async def check_claim(
         mime_type = f"image/{ext}" if ext in ("png", "jpeg", "jpg", "webp") else "image/jpeg"
         image_base64 = f"data:{mime_type};base64,{encoded}"
 
-    # ── Run the 3-call pipeline ────────────────────────────────────────────────
+    # ── Run the 3-call pipeline ───────────────────────────────────────────────
     raw: dict = agent.process_claim(claim=claim, image=image_base64, verbose=False)
 
-    verdict = raw.get("label", "UNCERTAIN")
-    reasoning = raw.get("explanation", "")
+    verdict: str = raw.get("label", "UNCERTAIN")
+    reasoning: str = raw.get("explanation", "")
     evidence_dict: dict = raw.get("evidence") or {}
-    past_claims = raw.get("past_claims", [])
+    past_claims: list = raw.get("past_claims", [])
 
-    # ── Build structured response ──────────────────────────────────────────────
     citations = _extract_citations(evidence_dict)
     confidence = _compute_confidence(verdict, evidence_dict)
+
+    # ── Persist to DB ─────────────────────────────────────────────────────────
+    user_id = int(current_user["sub"]) if current_user else None
+    _save_claim_to_db(
+        db,
+        user_id=user_id,
+        claim=claim,
+        verdict=verdict,
+        confidence=confidence,
+        reasoning=reasoning,
+        image_analyzed=image_base64 is not None,
+        past_context_used=bool(past_claims),
+        citations=citations,
+    )
 
     return FactCheckResponse(
         claim=claim,
