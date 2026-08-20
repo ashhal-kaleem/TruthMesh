@@ -24,6 +24,9 @@ from typing import List, TypedDict, Annotated
 
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, BaseMessage
+from langchain_core.documents import Document
+from langchain_core.vectorstores import InMemoryVectorStore
+from langchain_community.embeddings import FakeEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import StateGraph, MessagesState, START, END
 from langgraph.prebuilt import create_react_agent
@@ -47,6 +50,7 @@ class AgentState(TypedDict):
     """Flat state dict threaded through the three pipeline nodes."""
     claim: str              # original user claim (set at START)
     image: str              # optional image path or base64 data
+    past_claims: list       # optional past relevant claims from RAG
     plan: dict              # output of plan_node  {subclaims_with_queries: [...]}
     evidence: dict          # output of evidence_node {subclaims_with_query_evidence: [...]}
     verdict: dict           # output of verdict_node  {label, explanation}
@@ -82,6 +86,9 @@ class FactAgent:
             temperature=temperature,
         )
 
+        self.embeddings = FakeEmbeddings(size=768)
+        self.vector_store = InMemoryVectorStore(embedding=self.embeddings)
+
         # The only ReAct agent — used inside evidence_node.
         # It is the sole agentic component: it decides when evidence is
         # sufficient and may issue follow-up queries adaptively.
@@ -106,6 +113,13 @@ class FactAgent:
         """
         claim = state["claim"]
         image = state.get("image")
+        past_claims = state.get("past_claims", [])
+        
+        if past_claims:
+            past_text = "\n\nSimilar past claims and their verdicts:\n" + json.dumps(past_claims, indent=2)
+            base_claim_text = f"Claim to fact-check:\n{claim}{past_text}"
+        else:
+            base_claim_text = f"Claim to fact-check:\n{claim}"
         
         if image:
             if os.path.exists(image):
@@ -119,11 +133,11 @@ class FactAgent:
                 image_url = image
 
             human_content = [
-                {"type": "text", "text": f"Claim to fact-check:\n{claim}"},
+                {"type": "text", "text": base_claim_text},
                 {"type": "image_url", "image_url": {"url": image_url}},
             ]
         else:
-            human_content = f"Claim to fact-check:\n{claim}"
+            human_content = base_claim_text
 
         messages = [
             SystemMessage(content=plan_prompt),
@@ -334,9 +348,22 @@ class FactAgent:
         Returns:
             dict with keys: claim, label, explanation, plan, evidence
         """
+        past_claims = []
+        try:
+            docs = self.vector_store.similarity_search(claim, k=2)
+            for doc in docs:
+                past_claims.append({
+                    "claim": doc.page_content,
+                    "verdict": doc.metadata.get("verdict"),
+                    "explanation": doc.metadata.get("explanation")
+                })
+        except Exception:
+            pass
+
         initial_state: AgentState = {
             "claim": claim,
             "image": image,
+            "past_claims": past_claims,
             "plan": {},
             "evidence": {},
             "verdict": {},
@@ -374,6 +401,13 @@ class FactAgent:
         explanation = (
             final.get("verdict", {}).get("result", {}).get("explanation", "")
         )
+
+        if label != "unknown":
+            doc = Document(
+                page_content=claim,
+                metadata={"verdict": label, "explanation": explanation}
+            )
+            self.vector_store.add_documents([doc])
 
         return {
             "claim": claim,
