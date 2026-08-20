@@ -418,6 +418,7 @@ class FactAgent:
                 steps[1].get("evidence", {}).get("evidence", {})
                 if len(steps) > 1 else {}
             ),
+            "past_claims": past_claims,
         }
 
     def process_multiple_claims(
