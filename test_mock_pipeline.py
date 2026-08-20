@@ -58,27 +58,26 @@ EVIDENCE_RESPONSE = json.dumps({
     ]
 })
 
-VERDICT_RESPONSE = json.dumps({
-    "result": {
-        "label": "supported",
-        "explanation": (
-            "Multiple sources confirm the Eiffel Tower stands in Paris, France, "
-            "and was completed in 1889 for the World's Fair."
-        )
-    }
-})
+VERDICT_RESPONSES = {
+    "SUPPORT": json.dumps({"result": {"label": "SUPPORT", "explanation": "Multiple sources confirm the Eiffel Tower stands in Paris, France."}}),
+    "REFUTE": json.dumps({"result": {"label": "REFUTE", "explanation": "Sources contradict the claim."}}),
+    "UNCERTAIN": json.dumps({"result": {"label": "UNCERTAIN", "explanation": "Evidence is mixed."}})
+}
 
 # ── Response sequencer ────────────────────────────────────────────────────────
 
-_responses = [PLAN_RESPONSE, EVIDENCE_RESPONSE, VERDICT_RESPONSE]
+_responses = []
 _call_index = 0
 _call_count = 0
 _call_log   = []
+_current_target = "SUPPORT"
 
 def fake_generate(self, messages, stop=None, run_manager=None, **kwargs):
     global _call_index, _call_count
     _call_count += 1
-    response_text = _responses[min(_call_index, len(_responses) - 1)]
+    
+    responses = [PLAN_RESPONSE, EVIDENCE_RESPONSE, VERDICT_RESPONSES[_current_target]]
+    response_text = responses[min(_call_index, len(responses) - 1)]
     _call_index += 1
 
     node_hints = {0: "plan_node", 1: "evidence_node", 2: "verdict_node"}
@@ -91,6 +90,7 @@ def fake_generate(self, messages, stop=None, run_manager=None, **kwargs):
     return ChatResult(generations=[ChatGeneration(message=msg)])
 
 # ── Run test ──────────────────────────────────────────────────────────────────
+# ── Run test ──────────────────────────────────────────────────────────────────
 print("Patching ChatGoogleGenerativeAI._generate with mock...")
 with patch.object(ChatGoogleGenerativeAI, "_generate", fake_generate):
     from src.main_agent import FactAgent
@@ -98,35 +98,45 @@ with patch.object(ChatGoogleGenerativeAI, "_generate", fake_generate):
 
     claim = "The Eiffel Tower is located in Paris, France, and was completed in 1889."
     print(f"\nClaim: {claim}\n")
-    print("Running mocked 3-call pipeline...\n")
+    
+    for target_label in ["SUPPORT", "REFUTE", "UNCERTAIN"]:
+        _current_target = target_label
+        _call_index = 0
+        _call_count = 0
+        _call_log = []
+        
+        print(f"Running mocked 3-call pipeline for target label: {target_label}...\n")
+        result = agent.process_claim(claim, verbose=False)
 
-    result = agent.process_claim(claim, verbose=True)
+        print("\n=== Result ===")
+        print(f"Expected   : {target_label}")
+        print(f"Label      : {result['label']}")
+        print(f"Explanation: {result['explanation'][:200]}")
 
-print("\n=== Result ===")
-print(f"Label      : {result['label']}")
-print(f"Explanation: {result['explanation'][:200]}")
+        print(f"\n=== Call count: {_call_count} ===")
+        for i, name in enumerate(_call_log, 1):
+            print(f"  Call {i}: {name}")
 
-print(f"\n=== Call count: {_call_count} ===")
-for i, name in enumerate(_call_log, 1):
-    print(f"  Call {i}: {name}")
+        # ── Assertions ────────────────────────────────────────────────────────────────
+        errors = []
 
-# ── Assertions ────────────────────────────────────────────────────────────────
-errors = []
+        if _call_count != 3:
+            errors.append(f"Expected 3 Gemini calls, got {_call_count}")
 
-if _call_count != 3:
-    errors.append(f"Expected 3 Gemini calls, got {_call_count}")
+        if result.get("label") != target_label:
+            errors.append(f"Expected label='{target_label}', got '{result.get('label')}'")
 
-if result.get("label") != "supported":
-    errors.append(f"Expected label='supported', got '{result.get('label')}'")
+        if not result.get("explanation"):
+            errors.append("Missing explanation in result")
 
-if not result.get("explanation"):
-    errors.append("Missing explanation in result")
+        if errors:
+            print(f"\n[FAIL] for label {target_label}")
+            for e in errors:
+                print(f"  ✗ {e}")
+            sys.exit(1)
+        else:
+            print(f"\n[PASS] Exactly 3 Gemini calls, correct label, explanation present for {target_label}.")
+            print("-" * 40)
 
-if errors:
-    print("\n[FAIL]")
-    for e in errors:
-        print(f"  ✗ {e}")
-    sys.exit(1)
-else:
-    print("\n[PASS] Exactly 3 Gemini calls, correct label, explanation present.")
-    print("=== Mock pipeline test PASSED ===")
+print("\n=== All Mock pipeline tests PASSED ===")
+

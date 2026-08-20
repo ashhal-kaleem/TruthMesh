@@ -7,12 +7,14 @@ from collections import defaultdict
 
 # Label normalization map
 LABEL_MAP = {
-    "SUPPORTS": "supported",
-    "SUPPORTED": "supported",
-    "SUPPORT": "supported",
-    "REFUTES": "not_supported",
-    "NOT_SUPPORTED": "not_supported",
-    "CONTRADICT": "not_supported"
+    "SUPPORTS": "SUPPORT",
+    "SUPPORTED": "SUPPORT",
+    "SUPPORT": "SUPPORT",
+    "REFUTES": "REFUTE",
+    "NOT_SUPPORTED": "REFUTE",
+    "CONTRADICT": "REFUTE",
+    "REFUTE": "REFUTE",
+    "UNCERTAIN": "UNCERTAIN"
 }
 METHODS = ["cot", "folk", "sase", "factagent"]
 

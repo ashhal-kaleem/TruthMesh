@@ -6,7 +6,7 @@ class _GetItem:
         return getattr(self, key)
 
 class VerdictResult(BaseModel):
-    label: Literal["supported", "not_supported"] = Field(
+    label: Literal["SUPPORT", "REFUTE", "UNCERTAIN"] = Field(
         description="The verdict on whether the claim is supported by the evidence."
     )
     explanation: str = Field(
@@ -36,12 +36,12 @@ Here is the given subclaims, its subquestions, and retrieved evidence for each s
 - Assess the credibility, consistency, and reliability of each piece of evidence.  
 
 2. Apply a Voting System for Classification  
-- If multiple sources strongly support the subclaim, classify it as "supported".  
-- If multiple sources contradict the subclaim, classify it as "not_supported".  
-- If the evidence is mixed, insufficient, or inconclusive, classify it as "not_supported".  
+- If multiple sources strongly support the subclaim, classify it as "SUPPORT".  
+- If multiple sources contradict the subclaim, classify it as "REFUTE".  
+- If the evidence is mixed, insufficient, or inconclusive, classify it as "UNCERTAIN".  
 
 3. Provide a Justification  
-- Clearly explain why the subclaim is classified as "supported" or "not_supported".  
+- Clearly explain why the subclaim is classified as "SUPPORT", "REFUTE", or "UNCERTAIN".  
 - Reference key pieces of evidence that influenced your decision.  
 - If the evidence is inconclusive, explain the limitations or uncertainties.  
 - Remember to adjust not to include " for later parse

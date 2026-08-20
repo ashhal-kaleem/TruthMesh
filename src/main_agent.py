@@ -242,7 +242,7 @@ class FactAgent:
         """
         GEMINI CALL #3
         Given the original claim and all gathered evidence, produce a final
-        verdict: label (supported | not_supported) + natural-language explanation.
+        verdict: label (SUPPORT | REFUTE | UNCERTAIN) + natural-language explanation.
         """
         claim = state["claim"]
         evidence = state["evidence"]
