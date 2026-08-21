@@ -7,7 +7,7 @@ the schemas expected by plan_node, evidence_node and verdict_node.  The test:
   2. Verifies each node received and returned well-formed data.
   3. Checks no supervisor / routing calls occur.
 
-Run:  python P:\\FactAgent\\test_mock_pipeline.py
+Run:  python P:\\TruthMesh\\test_mock_pipeline.py
 """
 import sys
 import os
@@ -113,8 +113,8 @@ def fake_generate(self, messages, stop=None, run_manager=None, **kwargs):
 # ── Run test ──────────────────────────────────────────────────────────────────
 print("Patching ChatGoogleGenerativeAI._generate with mock...")
 with patch.object(ChatGoogleGenerativeAI, "_generate", fake_generate):
-    from src.main_agent import FactAgent
-    agent = FactAgent(dataset="feverous")
+    from src.main_agent import TruthMesh
+    agent = TruthMesh(dataset="feverous")
 
     claim = "The Eiffel Tower is located in Paris, France, and was completed in 1889."
     print(f"\nClaim: {claim}\n")

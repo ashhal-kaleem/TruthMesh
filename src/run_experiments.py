@@ -1,7 +1,7 @@
 import os
 import json
 from tqdm import tqdm
-from src.main_agent import FactAgent
+from src.main_agent import TruthMesh
 from src.experiments import cot, direct, folk, sase
 
 def sanitize_model_name(model):
@@ -38,7 +38,7 @@ def main_experiment(model, data_folder, output_folder, method):
                 json.dump(output_data, f, indent=2, ensure_ascii=False)
 
 
-def main_factagent(model, data_folder, output_folder):
+def main_truthmesh(model, data_folder, output_folder):
     for data_type in os.listdir(data_folder):
         data_type_path = os.path.join(data_folder, data_type)
         if not os.path.isdir(data_type_path):
@@ -56,7 +56,7 @@ def main_factagent(model, data_folder, output_folder):
             file_path = os.path.join(data_type_path, filename)
             with open(file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            agent = FactAgent(dataset=dataset)
+            agent = TruthMesh(dataset=dataset)
             output_data = []
             for item in tqdm(data, desc=f"Processing {filename}"):
                 result = agent.process_claim(item, verbose=True)
@@ -80,4 +80,4 @@ if __name__ == "__main__":
         main_experiment(model, "data", "result/direct", direct)
         main_experiment(model, "data", "result/folk", folk)
         main_experiment(model, "data", "result/sase", sase)
-        main_factagent(model, "data", "result/factagent")
+        main_truthmesh(model, "data", "result/truthmesh")

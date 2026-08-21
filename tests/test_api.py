@@ -1,8 +1,8 @@
 """
-test_api.py — Full mocked test suite for the FactAgent FastAPI backend.
+test_api.py — Full mocked test suite for the TruthMesh FastAPI backend.
 
 Environment vars are set in conftest.py BEFORE any src.* import:
-  DATABASE_URL=sqlite:///./test_factagent.db
+  DATABASE_URL=sqlite:///./test_truthmesh.db
   VECTOR_BACKEND=fake
   JWT_SECRET_KEY=test_jwt_secret_key_for_testing_only_32ch
 
@@ -58,7 +58,7 @@ def setup_test_db():
     yield
     drop_db()
     # Remove SQLite file (best-effort; ignore if locked)
-    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "test_factagent.db")
+    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "test_truthmesh.db")
     try:
         if os.path.exists(db_path):
             os.remove(db_path)

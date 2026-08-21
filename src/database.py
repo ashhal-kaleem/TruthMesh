@@ -1,5 +1,5 @@
 """
-database.py — SQLAlchemy ORM setup for FactAgent.
+database.py — SQLAlchemy ORM setup for TruthMesh.
 
 Tables:
   users              — auth accounts
@@ -7,9 +7,9 @@ Tables:
   evidence_citations — flattened per-claim source citations
 
 DATABASE_URL env var selects the engine:
-  PostgreSQL (prod): postgresql://user:pass@host:5432/factagent
-  SQLite    (dev):   sqlite:///./factagent.db   (default fallback)
-  SQLite   (test):   sqlite:///./test_factagent.db  (set via conftest.py)
+  PostgreSQL (prod): postgresql://user:pass@host:5432/truthmesh
+  SQLite    (dev):   sqlite:///./truthmesh.db   (default fallback)
+  SQLite   (test):   sqlite:///./test_truthmesh.db  (set via conftest.py)
 
 Railway/Render may emit postgres:// URLs — these are normalised to postgresql://.
 """
@@ -24,7 +24,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker, Session
 
 # ── Engine configuration ──────────────────────────────────────────────────────
-DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./factagent.db")
+DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./truthmesh.db")
 
 # Normalise legacy Heroku / Railway postgres:// scheme
 if DATABASE_URL.startswith("postgres://"):

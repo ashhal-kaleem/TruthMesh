@@ -1,5 +1,5 @@
 """
-conftest.py — pytest configuration for FactAgent test suite.
+conftest.py — pytest configuration for TruthMesh test suite.
 
 This file is loaded by pytest BEFORE test collection begins, ensuring that
 all environment variables are set prior to any src.* module import.
@@ -10,7 +10,7 @@ import os
 
 # ── Test-safe overrides ───────────────────────────────────────────────────────
 # SQLite file DB (avoids requiring a live PostgreSQL server in CI/dev)
-os.environ.setdefault("DATABASE_URL", "sqlite:///./test_factagent.db")
+os.environ.setdefault("DATABASE_URL", "sqlite:///./test_truthmesh.db")
 
 # Use FakeEmbeddings + InMemoryVectorStore (no chromadb / sentence-transformers needed)
 os.environ.setdefault("VECTOR_BACKEND", "fake")

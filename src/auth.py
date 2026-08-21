@@ -1,5 +1,5 @@
 """
-auth.py — JWT authentication helpers for FactAgent API.
+auth.py — JWT authentication helpers for TruthMesh API.
 
 Dependencies:
   passlib[bcrypt]          — secure password hashing

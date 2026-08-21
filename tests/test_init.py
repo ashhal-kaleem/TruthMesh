@@ -1,6 +1,6 @@
 """
 test_init.py — zero-API-call instantiation + call-count instrumentation.
-Run from P:\FactAgent:  python test_init.py
+Run from P:\TruthMesh:  python test_init.py
 """
 import sys
 import os
@@ -14,13 +14,13 @@ assert os.getenv("GOOGLE_API_KEY"),  "GOOGLE_API_KEY missing from .env"
 assert os.getenv("SERPER_API_KEY"), "SERPER_API_KEY missing from .env"
 print("[OK] Both API keys found in environment.")
 
-print("Importing FactAgent...")
-from src.main_agent import FactAgent
+print("Importing TruthMesh...")
+from src.main_agent import TruthMesh
 print("[OK] Import succeeded.")
 
-print("Instantiating FactAgent(dataset='feverous')...")
-agent = FactAgent(dataset="feverous")
-print("[OK] FactAgent instantiated.")
+print("Instantiating TruthMesh(dataset='feverous')...")
+agent = TruthMesh(dataset="feverous")
+print("[OK] TruthMesh instantiated.")
 
 # Verify new attributes
 attrs = ["llm", "graph", "evidence_agent"]

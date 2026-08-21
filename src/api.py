@@ -1,5 +1,5 @@
 """
-api.py — FactAgent FastAPI Backend (v3 — production-ready)
+api.py — TruthMesh FastAPI Backend (v3 — production-ready)
 ──────────────────────────────────────────────────────────
 
 Architecture:
@@ -39,7 +39,7 @@ from src.database import (
     get_db,
     init_db,
 )
-from src.main_agent import FactAgent
+from src.main_agent import TruthMesh
 
 # ── Lifespan ──────────────────────────────────────────────────────────────────
 
@@ -51,7 +51,7 @@ async def lifespan(app: FastAPI):
     # Shutdown — nothing required
 
 app = FastAPI(
-    title="FactAgent API",
+    title="TruthMesh API",
     description="Fact-checking pipeline — 3-call architecture, multimodal, RAG, auth.",
     version="3.0.0",
     lifespan=lifespan,
@@ -68,7 +68,7 @@ app.add_middleware(
 )
 
 # ── Global agent (initialised once at startup) ────────────────────────────────
-agent = FactAgent(dataset="feverous")
+agent = TruthMesh(dataset="feverous")
 
 
 # ── Request / Response schemas ────────────────────────────────────────────────
@@ -292,7 +292,7 @@ def my_history(
 def health_check():
     return {
         "status": "ok",
-        "message": "FactAgent API is running.",
+        "message": "TruthMesh API is running.",
         "version": "3.0.0",
     }
 

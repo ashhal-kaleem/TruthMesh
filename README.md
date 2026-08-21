@@ -2,7 +2,7 @@
 
 A sophisticated multi-agent fact-checking system that combines advanced evidence retrieval techniques to verify factual claims across diverse domains.
 
-![FactAgent System Overview](fact-check.png)
+![TruthMesh System Overview](fact-check.png)
 
 ## Contributors
 - Tam Trinh
@@ -16,8 +16,8 @@ A sophisticated multi-agent fact-checking system that combines advanced evidence
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-username/FactAgent.git
-   cd FactAgent
+   git clone https://github.com/your-username/TruthMesh.git
+   cd TruthMesh
    ```
 
 2. **Create a virtual environment**
@@ -40,9 +40,9 @@ A sophisticated multi-agent fact-checking system that combines advanced evidence
 ## 📁 Project Structure
 
 ```
-FactAgent/
+TruthMesh/
 ├── src/
-│   ├── main_agent.py          # Main FactAgent implementation
+│   ├── main_agent.py          # Main TruthMesh implementation
 │   ├── run_experiments.py     # Experiment runner
 │   ├── evaluate.py            # Evaluation utilities
 │   ├── utils.py               # Utility functions
@@ -72,10 +72,10 @@ FactAgent/
 ### Basic Usage
 
 ```python
-from src.main_agent import FactAgent
+from src.main_agent import TruthMesh
 
 # Initialize the agent
-agent = FactAgent(dataset="fever")
+agent = TruthMesh(dataset="fever")
 
 # Verify a claim
 claim = "The Earth is round."

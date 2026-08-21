@@ -1,5 +1,5 @@
 """
-main_agent.py — FactAgent (3-call architecture)
+main_agent.py — TruthMesh (3-call architecture)
 ────────────────────────────────────────────────
 LangGraph pipeline:
 
@@ -56,9 +56,9 @@ class AgentState(TypedDict):
     messages: List[BaseMessage]  # kept for compatibility with MessagesState helpers
 
 
-# ── FactAgent ─────────────────────────────────────────────────────────────────
+# ── TruthMesh ─────────────────────────────────────────────────────────────────
 
-class FactAgent:
+class TruthMesh:
     def __init__(
         self,
         dataset: str,
@@ -66,7 +66,7 @@ class FactAgent:
         temperature: float = 0.2,
     ):
         """
-        Initialise FactAgent.
+        Initialise TruthMesh.
 
         Args:
             dataset:     Dataset name — governs article date limits in retrieval

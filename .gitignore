@@ -6,3 +6,6 @@ __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
+test_truthmesh.db
+test_factagent.db
+*.db

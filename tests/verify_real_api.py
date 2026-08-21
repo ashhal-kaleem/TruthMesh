@@ -1,5 +1,5 @@
 """
-verify_real_api.py — Real API verification script for FactAgent.
+verify_real_api.py — Real API verification script for TruthMesh.
 
 Run this ONLY after quota reset to verify the live pipeline with real
 Gemini + Serper calls. It exercises every endpoint of a running server.
@@ -146,7 +146,7 @@ def verify_history(base_url: str, token: str) -> bool:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Real API verification script for FactAgent")
+    parser = argparse.ArgumentParser(description="Real API verification script for TruthMesh")
     parser.add_argument("--base-url", default="http://localhost:8000", help="API base URL")
     parser.add_argument("--image", default=None, help="Optional image file path to include")
     args = parser.parse_args()
@@ -155,7 +155,7 @@ def main() -> None:
     image_path = Path(args.image) if args.image else None
 
     print(f"\n{'='*60}")
-    print(f"  FactAgent API Verification")
+    print(f"  TruthMesh API Verification")
     print(f"  Target: {base_url}")
     print(f"{'='*60}")
 

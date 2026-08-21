@@ -1,6 +1,6 @@
 """
 test_real_claim.py — end-to-end pipeline run with Gemini call counting.
-Run from anywhere:  python P:\\FactAgent\\test_real_claim.py
+Run from anywhere:  python P:\\TruthMesh\\test_real_claim.py
 
 The test monkey-patches ChatGoogleGenerativeAI.invoke and
 ChatGoogleGenerativeAI._generate (used by structured-output calls) so every
@@ -34,9 +34,9 @@ def _counting_generate(self, messages, stop=None, run_manager=None, **kwargs):
 ChatGoogleGenerativeAI._generate = _counting_generate
 
 # ── Run the pipeline ──────────────────────────────────────────────────────────
-from src.main_agent import FactAgent
+from src.main_agent import TruthMesh
 
-agent = FactAgent(dataset="feverous")
+agent = TruthMesh(dataset="feverous")
 
 claim = "The Eiffel Tower is located in Paris, France, and was completed in 1889."
 print(f"\nClaim: {claim}\n")

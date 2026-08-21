@@ -1,5 +1,5 @@
 """
-vector_store.py — Pluggable vector store factory for FactAgent RAG layer.
+vector_store.py — Pluggable vector store factory for TruthMesh RAG layer.
 
 Controlled by VECTOR_BACKEND env var:
   "fake"     → InMemoryVectorStore + FakeEmbeddings  (default; dev / test)

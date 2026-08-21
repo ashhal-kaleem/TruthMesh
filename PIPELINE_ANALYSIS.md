@@ -1,4 +1,4 @@
-# FactAgent — Pipeline Analysis & API-Reduction Proposal
+# TruthMesh — Pipeline Analysis & API-Reduction Proposal
 
 > **Goal:** reduce Gemini calls from ~24 per claim → **3 per claim**  
 > **Constraint:** no code changes yet; design only.

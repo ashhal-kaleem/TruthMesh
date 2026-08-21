@@ -16,7 +16,7 @@ LABEL_MAP = {
     "REFUTE": "REFUTE",
     "UNCERTAIN": "UNCERTAIN"
 }
-METHODS = ["cot", "folk", "sase", "factagent"]
+METHODS = ["cot", "folk", "sase", "truthmesh"]
 
 def normalize_label(label: str) -> str:
     return LABEL_MAP.get(label.upper(), label.lower())
@@ -172,6 +172,6 @@ if __name__ == "__main__":
     evaluate_classification("result/direct", "eval/direct")
     evaluate_classification("result/folk", "eval/folk")
     evaluate_classification("result/sase", "eval/sase")
-    evaluate_classification("result/factagent", "eval/factagent")
+    evaluate_classification("result/truthmesh", "eval/truthmesh")
     evaluate_gpt("result", "eval/gpt-eval.txt")
    
