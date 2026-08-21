@@ -36,6 +36,19 @@ if DATABASE_URL.startswith("postgres://"):
 if "supabase.co" in DATABASE_URL and ":5432" in DATABASE_URL:
     DATABASE_URL = DATABASE_URL.replace(":5432", ":6543")
 
+# ── TEMPORARY DIAGNOSTIC (remove after Render verification) ──────────────────
+try:
+    from urllib.parse import urlparse as _urlparse
+    _p = _urlparse(DATABASE_URL)
+    print(
+        f"[DB DIAG] scheme={_p.scheme!r} host={_p.hostname!r} "
+        f"port={_p.port!r} user={_p.username!r} db={_p.path.lstrip('/')!r}",
+        flush=True,
+    )
+except Exception as _e:
+    print(f"[DB DIAG] parse error: {_e}", flush=True)
+# ── END TEMPORARY DIAGNOSTIC ──────────────────────────────────────────────────
+
 _connect_args = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
 
 engine = create_engine(DATABASE_URL, connect_args=_connect_args, pool_pre_ping=True)
