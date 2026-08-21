@@ -83,6 +83,8 @@ class SearchEngineRetriever:
         return f"{parsed_url.netloc}/"
 
     def _check_valid_url(self, url):
+        if not url.startswith(('http://', 'https://')):
+            url = 'https://' + url
         parsed_url = urllib.parse.urlparse(url)
         domain = parsed_url.netloc.lower()
         if domain.startswith('www.'):
