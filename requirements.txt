@@ -10,7 +10,7 @@ seaborn
 requests
 beautifulsoup4
 python-whois
-selenium
+# selenium removed: replaced with requests+BeautifulSoup for Render compatibility
 
 # LLM API clients
 google-generativeai

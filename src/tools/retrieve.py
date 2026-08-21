@@ -4,12 +4,8 @@ import logging
 import json
 import re
 import unicodedata
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
 import requests
+from bs4 import BeautifulSoup
 from urllib.parse import urlparse
 from langchain_core.tools import tool
 from dotenv import load_dotenv
@@ -42,22 +38,20 @@ _STOP_WORDS = {
     "this", "it", "its", "from", "as", "not", "which", "who",
 }
 
+_SCRAPE_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    )
+}
+_SCRAPE_TIMEOUT = 8  # seconds per HTTP request
+
+
 class SearchEngineRetriever:
     def __init__(self, dataset: str, headless: bool = True):
         self.skip_query_token = None
         self.server_address = "https://google.serper.dev/search"
         self.dataset = dataset
-        options = webdriver.ChromeOptions()
-        if headless:
-            options.add_argument('--headless')
-        options.add_argument('--no-sandbox')
-        options.add_argument('--disable-dev-shm-usage')
-        options.add_argument(
-            'user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-            'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        )
-        self.driver = webdriver.Chrome(options=options)
-        self.wait = WebDriverWait(self.driver, 10)
 
     def create_content_dict(self, content: list, **kwargs) -> Dict:
         resp_content = {"content": content}
@@ -220,14 +214,17 @@ class SearchEngineRetriever:
         return retrieved_doc
 
     def get_details(self, url):
-        """Extract content from webpage using Selenium."""
+        """Extract content from webpage using requests + BeautifulSoup."""
         try:
-            self.driver.get(url)
-            self.wait.until(EC.presence_of_element_located((By.TAG_NAME, "p")))
-            paragraphs = self.driver.find_elements(By.TAG_NAME, "p")
+            resp = requests.get(url, headers=_SCRAPE_HEADERS, timeout=_SCRAPE_TIMEOUT)
+            if resp.status_code != 200:
+                logging.warning(f"HTTP {resp.status_code} for {url}")
+                return []
+
+            soup = BeautifulSoup(resp.text, "html.parser")
             raw_para = ""
-            for para in paragraphs:
-                text = para.text.strip()
+            for para in soup.find_all("p"):
+                text = para.get_text(separator=" ").strip()
                 if text:
                     text = " ".join(text.split())
                     text = unicodedata.normalize("NFKD", text)
@@ -249,7 +246,7 @@ class SearchEngineRetriever:
 
             return self._split_into_sentences(raw_para)
 
-        except TimeoutException:
+        except requests.exceptions.Timeout:
             logging.warning(f"Timeout while accessing {url}")
             return []
         except Exception as e:
@@ -270,10 +267,6 @@ class SearchEngineRetriever:
 
     def retrieve(self, queries: List[str]) -> List[Dict[str, Any]]:
         return [self._retrieve_single(q) for q in queries]
-
-    def __del__(self):
-        if hasattr(self, 'driver'):
-            self.driver.quit()
 
 
 @tool
