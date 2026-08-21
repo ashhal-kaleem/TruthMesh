@@ -30,7 +30,7 @@ from typing import List, Protocol, runtime_checkable
 
 from langchain_core.documents import Document
 
-VECTOR_BACKEND: str = os.getenv("VECTOR_BACKEND", "fake")
+# NOTE: resolved at call time inside create_vector_store(), not at import time.
 
 log = logging.getLogger(__name__)
 
@@ -101,6 +101,16 @@ class _PgVectorStore:
             raise RuntimeError(
                 "VECTOR_BACKEND=pgvector requires a PostgreSQL DATABASE_URL. "
                 "Supabase free tier (https://supabase.com) is recommended."
+            )
+        # Supabase direct connections (port 5432) resolve to IPv6 on Render,
+        # which fails with "Network is unreachable".  The transaction pooler
+        # (port 6543) uses IPv4 and is the correct endpoint for serverless /
+        # PaaS environments.  Swap silently if still on the direct port.
+        if "supabase.co" in db_url and ":5432" in db_url:
+            db_url = db_url.replace(":5432", ":6543")
+            log.info(
+                "[vector_store] Supabase direct port 5432 -> pooler port 6543 "
+                "(IPv4-safe for Render)"
             )
         self._db_url = db_url
         self._init_table()
@@ -224,7 +234,9 @@ def create_vector_store() -> VectorStore:
         store.add_documents([Document(page_content="...", metadata={...})])
         docs = store.similarity_search("my query", k=3)
     """
-    if VECTOR_BACKEND == "pgvector":
+    vector_backend: str = os.getenv("VECTOR_BACKEND", "fake")
+
+    if vector_backend == "pgvector":
         log.info("[vector_store] Backend → pgvector (Google text-embedding-004)")
         return _PgVectorStore()
 

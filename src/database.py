@@ -30,6 +30,12 @@ DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./truthmesh.db")
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
+# Supabase direct connections (port 5432) resolve to IPv6 on Render,
+# causing "Network is unreachable".  The transaction pooler (port 6543)
+# is IPv4-only and is the correct endpoint for PaaS deployments.
+if "supabase.co" in DATABASE_URL and ":5432" in DATABASE_URL:
+    DATABASE_URL = DATABASE_URL.replace(":5432", ":6543")
+
 _connect_args = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
 
 engine = create_engine(DATABASE_URL, connect_args=_connect_args, pool_pre_ping=True)
