@@ -406,7 +406,12 @@ class TruthMesh:
                 page_content=claim,
                 metadata={"verdict": label, "explanation": explanation}
             )
-            self.vector_store.add_documents([doc])
+            try:
+                self.vector_store.add_documents([doc])
+            except Exception as e:
+                logging.warning(
+                    "[process_claim] RAG write-back failed (non-fatal): %s", e
+                )
 
         return {
             "claim": claim,
