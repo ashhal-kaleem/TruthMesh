@@ -8,9 +8,11 @@ services:
     healthCheckPath: /
     envVars:
       - key: DATABASE_URL
-        fromDatabase:
-          name: factagent-db
-          property: connectionString
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: SERPER_API_KEY
+        sync: false
       - key: JWT_SECRET_KEY
         generateValue: true
       - key: VECTOR_BACKEND
@@ -19,8 +21,3 @@ services:
         value: production
       - key: CORS_ORIGINS
         value: "*"     # Replace with your Vercel URL in production
-
-databases:
-  - name: factagent-db
-    plan: free
-    databaseName: factagent
