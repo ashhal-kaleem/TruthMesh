@@ -300,7 +300,7 @@ def health_check():
 # ── Fact-check endpoint ───────────────────────────────────────────────────────
 
 @app.post("/check_claim", response_model=FactCheckResponse)
-async def check_claim(
+def check_claim(
     claim: str = Form(...),
     image: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
@@ -315,7 +315,7 @@ async def check_claim(
     # ── Handle optional image ─────────────────────────────────────────────────
     image_base64: Optional[str] = None
     if image:
-        content = await image.read()
+        content = image.file.read()
         encoded = base64.b64encode(content).decode("utf-8")
         filename = image.filename.lower()
         ext = filename.rsplit(".", 1)[-1] if "." in filename else "jpeg"
