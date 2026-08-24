@@ -94,7 +94,7 @@ def _get_groq_llm(temperature: float = 0.2):
         return None
     from langchain_groq import ChatGroq  # lazy import — not required at startup
     return ChatGroq(
-        model="openai/gpt-oss-120b",
+        model="llama-3.3-70b-versatile",
         api_key=groq_key,
         temperature=temperature,
     )
@@ -335,29 +335,47 @@ class TruthMesh:
 
     def _verdict_node(self, state: AgentState) -> AgentState:
         """
-        LLM CALL #2  (Gemini primary; Groq fallback — text-only, no image)
+        LLM CALL #2  (Gemini primary; Groq fallback for text-only claims)
 
-        Given the original claim and all gathered evidence, produces a final
-        verdict: label (SUPPORT | REFUTE | UNCERTAIN) + explanation.
-        Verdict is always text-only so fallback to Groq is always eligible.
+        Given the original claim, image (if present), and all gathered evidence,
+        produces a final verdict: label (SUPPORT | REFUTE | UNCERTAIN) + explanation.
         """
         claim    = state["claim"]
         evidence = state["evidence"]
+        image    = state.get("image")
+
+        base_text = (
+            f"Claim: {claim}\n\n"
+            f"Evidence collected:\n"
+            f"{json.dumps(evidence, indent=2)}"
+        )
+
+        has_image = bool(image)
+        if has_image:
+            if os.path.exists(image):
+                with open(image, "rb") as fh:
+                    encoded = base64.b64encode(fh.read()).decode("utf-8")
+                ext  = image.lower().rsplit(".", 1)[-1]
+                mime = f"image/{ext}" if ext in ("png", "jpeg", "jpg", "webp") else "image/jpeg"
+                image_url = f"data:{mime};base64,{encoded}"
+            else:
+                image_url = image
+
+            human_content = [
+                {"type": "text", "text": base_text},
+                {"type": "image_url", "image_url": {"url": image_url}},
+            ]
+        else:
+            human_content = base_text
 
         messages = [
             SystemMessage(content=verdict_prediction_prompt),
-            HumanMessage(
-                content=(
-                    f"Claim: {claim}\n\n"
-                    f"Evidence collected:\n"
-                    f"{json.dumps(evidence, indent=2)}"
-                )
-            ),
+            HumanMessage(content=human_content),
         ]
 
         verdict_obj: VerdictPrediction = _invoke_with_fallback(
             self.llm, VerdictPrediction, messages,
-            has_image=False, temperature=self.temperature,
+            has_image=has_image, temperature=self.temperature,
         )
         verdict_dict = verdict_obj.model_dump()
 
