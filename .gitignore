@@ -9,3 +9,11 @@ __pycache__/
 test_truthmesh.db
 test_factagent.db
 *.db
+
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+
+.agents/
+run_e2e_v2.py
+run_e2e_verify.py
