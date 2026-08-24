@@ -131,11 +131,11 @@ const MOCK_RAW = {
 };
 
 // ─── Config ────────────────────────────────────────────────────────────────────
-const API_BASE    = 'https://truthmesh-api.onrender.com';
+const API_BASE    = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
 const IS_MOCK_MODE = import.meta.env.VITE_MOCK_MODE === 'true';
 
-// Render free-tier cold starts can take ~50 s — give 60 s before we timeout.
-const REQUEST_TIMEOUT_MS = 60_000;
+// Allow up to 120 s for the LLM pipeline to complete (cold model loads can be slow).
+const REQUEST_TIMEOUT_MS = 120_000;
 
 const mockDelay = (ms = 2200) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -151,8 +151,7 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_M
   } catch (err) {
     if (err.name === 'AbortError') {
       throw new ApiError(
-        'Request timed out — the API server may be cold-starting (free tier). ' +
-        'This can take up to 60 s on first load. Please retry in a moment.',
+        'Request timed out — the analysis pipeline is taking longer than expected. Please try again in a moment.',
         408,
       );
     }

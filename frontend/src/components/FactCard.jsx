@@ -1,23 +1,22 @@
 import React from 'react';
-import { ShieldCheck, ShieldX, HelpCircle, FlaskConical } from 'lucide-react';
+import { ShieldCheck, ShieldX, HelpCircle, ArrowRight } from 'lucide-react';
 
 // Maps the canonical verdict strings (SUPPORTS | REFUTES | NOT ENOUGH INFO)
-// to the Stitch accent system used across Analysis, History, and Home.
-// The old `veracity: high | low | critical` prop is no longer used.
+// to the design token system used across Analysis, History, and Home.
 function getVerdictConfig(verdict) {
   switch ((verdict || '').toUpperCase().trim()) {
     case 'SUPPORTS':
       return {
-        cardClass:  'veracity-high',
-        badgeClass: 'bg-cyan-50 border-cyan-200 text-cyan-700',
+        badgeClass: 'bg-primary/10 border-primary/30 text-primary',
+        dotClass:   'bg-primary',
         Icon:       ShieldCheck,
-        iconColor:  'text-cyan-600',
+        iconColor:  'text-primary',
         label:      'Supports',
       };
     case 'REFUTES':
       return {
-        cardClass:  'veracity-critical',
         badgeClass: 'bg-error-container border-secondary/20 text-secondary',
+        dotClass:   'bg-secondary',
         Icon:       ShieldX,
         iconColor:  'text-secondary',
         label:      'Refutes',
@@ -25,8 +24,8 @@ function getVerdictConfig(verdict) {
     default:
       // NOT ENOUGH INFO
       return {
-        cardClass:  'veracity-low',
         badgeClass: 'bg-surface-container-low border-outline-variant text-on-surface-variant',
+        dotClass:   'bg-tertiary',
         Icon:       HelpCircle,
         iconColor:  'text-tertiary',
         label:      'Not Enough Info',
@@ -34,39 +33,37 @@ function getVerdictConfig(verdict) {
   }
 }
 
-export default function FactCard({ verdict, id, title, demo, onClick }) {
+export default function FactCard({ verdict, title, onClick }) {
   const config = getVerdictConfig(verdict);
 
   return (
-    <article
+    <button
+      type="button"
       onClick={onClick}
-      className={`bg-surface-container-lowest border border-outline-variant rounded-lg p-6 deep-shadow fact-card ${config.cardClass} flex flex-col h-full transition-all ${onClick ? 'cursor-pointer hover-lift' : ''}`}
+      className="group w-full text-left bg-surface-container-lowest border border-outline-variant rounded-lg px-4 py-3.5 transition-all duration-150 hover:border-primary/40 hover:bg-surface-container-low hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
     >
-      <div className="flex justify-between items-start mb-3 gap-2 flex-wrap">
-        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 border rounded text-xs font-bold tracking-wider uppercase ${config.badgeClass}`}>
-          <config.Icon size={14} className={config.iconColor} />
+      <div className="flex items-center gap-3 min-w-0">
+        {/* Verdict badge */}
+        <span
+          className={`shrink-0 inline-flex items-center gap-1 px-2 py-0.5 border rounded text-xs font-bold tracking-wide uppercase ${config.badgeClass}`}
+          aria-label={`Verdict: ${config.label}`}
+        >
+          <config.Icon size={12} className={config.iconColor} aria-hidden="true" />
           {config.label}
         </span>
-        <div className="flex items-center gap-2">
-          {demo && (
-            <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border bg-tertiary-container/20 border-tertiary/20 text-tertiary-container font-semibold">
-              <FlaskConical size={11} /> Demo
-            </span>
-          )}
-          {id && <span className="font-mono-technical text-xs text-outline">ID: {id}</span>}
-        </div>
-      </div>
 
-      <h4 className="font-claim-text text-xl text-primary mb-4 flex-1 line-clamp-3 leading-snug">
-        {title}
-      </h4>
+        {/* Claim text */}
+        <p className="flex-1 min-w-0 text-sm text-on-surface font-ui-header line-clamp-1 leading-snug">
+          {title}
+        </p>
 
-      <div className="flex justify-between items-center mt-auto pt-4 border-t border-outline-variant">
-        {demo
-          ? <span className="text-xs text-primary font-semibold">Click to analyse →</span>
-          : <span className="text-sm text-on-surface-variant font-ui-header">Analysis complete</span>
-        }
+        {/* Arrow — appears on hover */}
+        <ArrowRight
+          size={14}
+          className="shrink-0 text-outline opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity duration-150"
+          aria-hidden="true"
+        />
       </div>
-    </article>
+    </button>
   );
 }

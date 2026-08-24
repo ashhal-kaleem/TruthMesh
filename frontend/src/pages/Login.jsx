@@ -44,7 +44,7 @@ export default function Login() {
       navigate(from, { replace: true });
     } catch (err) {
       setError(err instanceof ApiError
-        ? `${err.message} (${err.status})`
+        ? err.message
         : 'Network error — check your connection.');
     } finally {
       setLoading(false);

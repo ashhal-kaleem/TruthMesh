@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
-import { Home, History, Settings, BookOpen, ExternalLink, Search,
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { Home, History, Settings, Github, Search,
          Menu, X, LogOut, LogIn, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -11,20 +11,21 @@ export default function Layout({ children }) {
   const [logoutPending,   setLogoutPending]   = useState(false);
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Scroll-lock body when mobile sidebar is open
   useEffect(() => {
-    if (mobileMenuOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
+    document.body.style.overflow = mobileMenuOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [mobileMenuOpen]);
 
+  // Reset logout pending when route changes
+  useEffect(() => {
+    setLogoutPending(false);
+  }, [location.pathname]);
+
   const closeMobile = () => { setMobileMenuOpen(false); setLogoutPending(false); };
 
-  // U5: two-step logout — first click shows confirm, second executes
   const handleLogoutClick = () => {
     if (!logoutPending) { setLogoutPending(true); return; }
     setLogoutPending(false);
@@ -35,11 +36,14 @@ export default function Layout({ children }) {
   const cancelLogout = () => setLogoutPending(false);
 
   const getNavLinkClass = ({ isActive }) =>
-    `flex items-center gap-3 px-6 py-3 transition-all ${
+    `group flex items-center gap-3.5 px-6 py-3.5 transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary ${
       isActive
-        ? 'text-primary border-r-2 border-primary font-semibold bg-surface-container-high'
-        : 'text-on-surface-variant hover:text-primary hover:bg-surface-container'
+        ? 'text-primary bg-surface-container-high border-r-[3px] border-primary font-semibold'
+        : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container border-r-[3px] border-transparent font-medium'
     }`;
+
+  const getNavIconClass = (isActive) =>
+    `transition-colors duration-150 ${isActive ? 'text-primary' : 'text-outline group-hover:text-on-surface'}`;
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-surface">
@@ -49,23 +53,23 @@ export default function Layout({ children }) {
         aria-label="Main navigation"
       >
         {/* Brand */}
-        <div className="p-6 border-b border-outline-variant flex justify-between items-center">
+        <div className="p-6 border-b border-outline-variant flex justify-between items-center h-16">
           <div>
-            <h1 className="text-xl font-display-editorial font-bold text-primary">TruthMesh AI</h1>
-            <p className="text-xs font-semibold tracking-widest text-on-surface-variant mt-1 uppercase">Research Preview</p>
+            <h1 className="text-xl font-display-editorial font-bold text-on-surface">TruthMesh <span className="text-primary font-medium">AI</span></h1>
           </div>
           <button
-            className="md:hidden text-on-surface-variant hover:text-primary transition-colors"
+            className="md:hidden text-outline hover:text-on-surface transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary rounded p-1"
             onClick={closeMobile}
             aria-label="Close navigation"
           >
-            <X size={24} />
+            <X size={20} />
           </button>
         </div>
 
         {/* Nav links */}
-        <div className="flex-1 overflow-y-auto py-4">
-          <ul className="space-y-1">
+        <div className="flex-1 py-6 flex flex-col">
+          <p className="px-6 text-xs font-bold tracking-widest uppercase text-outline mb-2">Menu</p>
+          <ul className="flex flex-col">
             {[
               { to: '/',         Icon: Home,     label: 'Home',     end: true  },
               { to: '/analysis', Icon: Search,   label: 'Analysis', end: false },
@@ -74,67 +78,70 @@ export default function Layout({ children }) {
             ].map(({ to, Icon, label, end }) => (
               <li key={to}>
                 <NavLink to={to} end={end} className={getNavLinkClass} onClick={closeMobile}>
-                  <Icon size={20} />
-                  <span>{label}</span>
+                  {({ isActive }) => (
+                    <>
+                      <Icon size={18} className={getNavIconClass(isActive)} aria-hidden="true" />
+                      <span>{label}</span>
+                    </>
+                  )}
                 </NavLink>
               </li>
             ))}
           </ul>
         </div>
 
-        {/* Footer links + auth */}
-        <div className="p-4 border-t border-outline-variant mt-auto space-y-1">
-          <a
-            href={REPO_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:text-primary transition-colors hover:bg-surface-container rounded"
-          >
-            <BookOpen size={18} />
-            <span className="text-sm">About TruthMesh</span>
-            <ExternalLink size={11} className="ml-auto opacity-40" />
-          </a>
-          <a
-            href={REPO_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:text-primary transition-colors hover:bg-surface-container rounded"
-          >
-            <ExternalLink size={18} />
-            <span className="text-sm">Source Code</span>
-          </a>
+        {/* Footer: GitHub link + auth */}
+        <div className="border-t border-outline-variant mt-auto">
+          {/* External links */}
+          <div className="py-2">
+            <a
+              href={REPO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex items-center gap-3.5 px-6 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary font-medium"
+              aria-label="View TruthMesh on GitHub"
+            >
+              <Github size={18} className="text-outline group-hover:text-on-surface transition-colors duration-150" aria-hidden="true" />
+              <span className="text-sm">GitHub</span>
+            </a>
+          </div>
 
-          <div className="pt-2 mt-2 border-t border-outline-variant">
+          {/* Auth Block */}
+          <div className="border-t border-outline-variant bg-surface-container-lowest">
             {isAuthenticated ? (
-              <div className="px-4 py-2">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-7 h-7 rounded-full bg-primary-container flex items-center justify-center shrink-0">
-                    <User size={14} className="text-on-primary-container" />
+              <div className="p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 border border-primary/20">
+                    <User size={15} className="text-primary" aria-hidden="true" />
                   </div>
-                  <span className="text-sm text-on-surface font-semibold truncate">{user?.username}</span>
+                  <div className="min-w-0">
+                    <p className="text-xs text-outline font-medium leading-none mb-1">Signed in as</p>
+                    <p className="text-sm text-on-surface font-semibold truncate leading-none">{user?.username}</p>
+                  </div>
                 </div>
+
                 {logoutPending ? (
-                  <div className="space-y-1">
-                    <p className="text-xs text-on-surface-variant px-2 pb-1">Sign out of TruthMesh?</p>
+                  <div className="bg-surface-container-low rounded-lg p-2 border border-outline-variant animate-in fade-in duration-150">
+                    <p className="text-xs text-on-surface-variant font-medium text-center mb-2">Sign out of TruthMesh?</p>
                     <div className="flex gap-1.5">
                       <button
-                        onClick={handleLogoutClick}
-                        className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold bg-secondary text-on-secondary px-2 py-1.5 rounded transition-colors"
-                      >
-                        <LogOut size={13} /> Confirm
-                      </button>
-                      <button
                         onClick={cancelLogout}
-                        className="flex-1 text-xs font-semibold border border-outline-variant text-on-surface-variant px-2 py-1.5 rounded hover:bg-surface-container transition-colors"
+                        className="flex-1 text-xs font-semibold border border-outline-variant text-on-surface-variant py-1.5 rounded bg-surface-container-lowest hover:bg-surface-container transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary shadow-sm"
                       >
                         Cancel
+                      </button>
+                      <button
+                        onClick={handleLogoutClick}
+                        className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold bg-secondary border border-secondary text-on-secondary py-1.5 rounded transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-secondary shadow-sm"
+                      >
+                        Sign out
                       </button>
                     </div>
                   </div>
                 ) : (
                   <button
                     onClick={handleLogoutClick}
-                    className="flex items-center gap-2 text-sm text-secondary hover:bg-error-container/30 px-2 py-1.5 rounded transition-colors w-full"
+                    className="flex items-center justify-center gap-2 text-sm font-medium text-secondary hover:bg-error-container/50 border border-transparent hover:border-secondary/20 py-2 rounded-lg transition-colors w-full focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-secondary"
                     aria-label="Sign out"
                   >
                     <LogOut size={15} /> Sign out
@@ -142,135 +149,90 @@ export default function Layout({ children }) {
                 )}
               </div>
             ) : (
-              <button
-                onClick={() => { navigate('/login'); closeMobile(); }}
-                className="flex items-center gap-3 px-4 py-2 text-primary hover:bg-primary/10 transition-colors rounded w-full text-sm font-semibold"
-              >
-                <LogIn size={18} /> Sign In
-              </button>
+              <div className="p-4">
+                <button
+                  onClick={() => { navigate('/login'); closeMobile(); }}
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-colors rounded-lg w-full text-sm font-semibold focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary shadow-sm"
+                >
+                  <LogIn size={16} aria-hidden="true" /> Sign In
+                </button>
+              </div>
             )}
           </div>
         </div>
       </nav>
 
       {/* Main area */}
-      <main className="flex-1 md:ml-64 flex flex-col min-h-screen">
-        {/* TopAppBar */}
-        <header className="bg-surface/80 backdrop-blur-md border-b border-outline-variant shadow-sm sticky top-0 z-30">
-          <div className="h-16 flex justify-between items-center px-4 md:px-12 max-w-[1280px] mx-auto w-full">
-            {/* Mobile: hamburger + brand */}
-            <div className="md:hidden flex items-center gap-4">
+      <main className="flex-1 md:ml-64 flex flex-col min-h-screen relative">
+        {/* Top bar (Mobile only now, desktop has cleaner edge) */}
+        <header className="md:hidden bg-surface/90 backdrop-blur-md border-b border-outline-variant sticky top-0 z-30">
+          <div className="h-14 flex justify-between items-center px-4 w-full">
+            <div className="flex items-center gap-3">
               <button
-                className="text-on-surface-variant hover:text-primary transition-colors"
+                className="text-outline hover:text-on-surface transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary rounded p-1"
                 onClick={() => setMobileMenuOpen(true)}
                 aria-label="Open navigation"
+                aria-expanded={mobileMenuOpen}
               >
-                <Menu size={24} />
+                <Menu size={22} />
               </button>
-              <span className="font-display-editorial text-2xl font-bold text-primary">TruthMesh</span>
+              <span className="font-display-editorial text-xl font-bold text-on-surface">TruthMesh</span>
             </div>
 
-            {/* Desktop: auth controls (right-aligned) */}
-            <div className="hidden md:flex flex-1 items-center justify-end gap-4">
-              {isAuthenticated ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-on-surface-variant font-semibold">{user?.username}</span>
-                  {logoutPending ? (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-on-surface-variant">Sign out?</span>
-                      <button
-                        onClick={handleLogoutClick}
-                        className="text-xs font-semibold bg-secondary text-on-secondary px-2.5 py-1 rounded transition-colors"
-                      >
-                        Confirm
-                      </button>
-                      <button
-                        onClick={cancelLogout}
-                        className="text-xs font-semibold border border-outline-variant text-on-surface-variant px-2.5 py-1 rounded hover:bg-surface-container transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={handleLogoutClick}
-                      title="Sign out"
-                      aria-label="Sign out"
-                      className="flex items-center gap-1.5 text-xs font-semibold text-on-surface-variant border border-outline-variant px-2.5 py-1 rounded-lg hover:bg-error-container/30 hover:text-secondary hover:border-secondary/40 transition-colors"
-                    >
-                      <LogOut size={13} />
-                      Sign out
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <button
-                  onClick={() => navigate('/login')}
-                  className="flex items-center gap-2 text-sm font-semibold text-primary border border-primary/30 px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-colors"
-                >
-                  <LogIn size={15} /> Sign In
-                </button>
-              )}
-            </div>
-
-            {/* Mobile: auth avatar — routes through sidebar for two-step */}
-            <div className="md:hidden flex items-center gap-3">
+            <div className="flex items-center">
               {isAuthenticated ? (
                 <button
                   onClick={() => setMobileMenuOpen(true)}
-                  title="Account menu"
                   aria-label="Open account menu"
-                  className="w-8 h-8 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-sm"
+                  className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 text-primary flex items-center justify-center font-bold text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
                 >
                   {user?.username?.charAt(0).toUpperCase() || 'U'}
                 </button>
               ) : (
-                <button onClick={() => navigate('/login')} className="text-primary" aria-label="Sign in">
-                  <LogIn size={20} />
+                <button
+                  onClick={() => navigate('/login')}
+                  className="text-primary text-sm font-semibold focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary rounded px-2 py-1"
+                >
+                  Sign In
                 </button>
               )}
             </div>
           </div>
         </header>
 
+        {/* Desktop top spacer to match the visual rhythm (optional, depending on content padding) */}
+        <div className="hidden md:block h-6 w-full" />
+
         {/* Page content */}
-        <div className="flex-1 p-4 md:p-8 lg:p-12 max-w-[1200px] mx-auto w-full flex flex-col">
+        <div className="flex-1 p-4 md:px-10 lg:px-16 max-w-[1200px] mx-auto w-full flex flex-col">
           {children}
         </div>
 
         {/* Footer */}
-        <footer className="mt-auto px-4 md:px-12 py-6 border-t border-outline-variant bg-surface-container-lowest flex flex-col md:flex-row justify-between items-center gap-4">
-          <span className="text-xs font-semibold tracking-widest text-on-surface-variant uppercase">
-            © {new Date().getFullYear()} TruthMesh AI · Research Preview
+        <footer className="mt-auto px-4 md:px-10 lg:px-16 py-6 border-t border-outline-variant bg-surface-container-lowest flex flex-col md:flex-row justify-between items-center gap-4">
+          <span className="text-xs font-semibold tracking-widest text-outline uppercase">
+            © {new Date().getFullYear()} TruthMesh AI
           </span>
-          <div className="flex gap-4 text-sm text-on-surface-variant">
+          <div className="flex gap-5 text-sm font-medium text-on-surface-variant">
             <a
               href={REPO_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-primary transition-colors"
-            >
-              About
-            </a>
-            <a
-              href={REPO_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-primary transition-colors"
+              className="hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary rounded px-1"
             >
               GitHub
             </a>
-            <NavLink to="/settings" className="hover:text-primary transition-colors">
+            <NavLink to="/settings" className="hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary rounded px-1">
               Settings
             </NavLink>
           </div>
         </footer>
       </main>
 
-      {/* Mobile backdrop — tap to close sidebar */}
+      {/* Mobile backdrop */}
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 bg-black/30 backdrop-blur-sm z-30 md:hidden"
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-30 md:hidden animate-in fade-in duration-200"
           onClick={closeMobile}
           aria-hidden="true"
         />

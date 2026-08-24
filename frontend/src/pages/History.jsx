@@ -1,30 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, ShieldX, HelpCircle, Clock, Trash2, Search,
-         Loader2, AlertCircle, LogIn, RefreshCw, EyeOff } from 'lucide-react';
+         Loader2, AlertCircle, RefreshCw, EyeOff, LogIn, ChevronRight } from 'lucide-react';
 import { fetchHistory, ApiError } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { normaliseVerdict } from '../api';
-
-// ─── Sample fallback shown in mock mode ───────────────────────────────────────
-const SAMPLE_HISTORY = [
-  { id: 'CK-8F92A', claim: 'Global supply chain disruptions projected to ease by Q3 based on leading maritime shipping indexes.', label: 'SUPPORTS', timestamp: new Date(Date.now() - 2 * 3600 * 1000).toISOString(), sourceCount: 5 },
-  { id: 'CK-4B19C', claim: 'New breakthrough battery tech promises 1000x capacity increase with zero rare earth metals.', label: 'REFUTES', timestamp: new Date(Date.now() - 5 * 3600 * 1000).toISOString(), sourceCount: 1 },
-  { id: 'CK-9X33Y', claim: 'Proposed central bank digital currency (CBDC) implementation timeline shifted to late 2026.', label: 'NOT ENOUGH INFO', timestamp: new Date(Date.now() - 24 * 3600 * 1000).toISOString(), sourceCount: 12 },
-  { id: 'CK-1A07B', claim: 'Earnings report anomalies for Q2 tech sector.', label: 'SUPPORTS', timestamp: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString(), sourceCount: 8 },
-];
-
-const IS_MOCK_MODE = import.meta.env.VITE_MOCK_MODE === 'true';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function getLabelConfig(label) {
   switch ((label || '').toUpperCase()) {
     case 'SUPPORTS':
-      return { Icon: ShieldCheck, dot: 'bg-cyan-500', text: 'text-cyan-700', badge: 'bg-cyan-50 border-cyan-200', label: 'Supports' };
+      return {
+        Icon: ShieldCheck,
+        color: 'text-primary',
+        badge: 'bg-primary/10 border-primary/20 text-primary',
+        label: 'Supports',
+      };
     case 'REFUTES':
-      return { Icon: ShieldX, dot: 'bg-secondary', text: 'text-secondary', badge: 'bg-error-container/50 border-secondary/20', label: 'Refutes' };
+      return {
+        Icon: ShieldX,
+        color: 'text-secondary',
+        badge: 'bg-error-container/50 border-secondary/20 text-secondary',
+        label: 'Refutes',
+      };
     default:
-      return { Icon: HelpCircle, dot: 'bg-tertiary', text: 'text-tertiary', badge: 'bg-tertiary-container/20 border-tertiary/20', label: 'Not Enough Info' };
+      return {
+        Icon: HelpCircle,
+        color: 'text-tertiary',
+        badge: 'bg-surface-container-low border-outline-variant text-on-surface-variant',
+        label: 'Not Enough Info',
+      };
   }
 }
 
@@ -37,13 +42,9 @@ function formatRelativeTime(iso) {
   return 'Just now';
 }
 
-/**
- * Map a raw ClaimHistoryItem from the API to the local display shape.
- * { claim_id, claim_text, verdict, confidence, citations, created_at }
- */
 function mapApiItem(item) {
   return {
-    id:          item.id != null ? `CK-${String(item.id).padStart(5, '0')}` : `CK-${Math.random().toString(36).slice(2, 7).toUpperCase()}`,
+    id:          item.id ?? null,
     claim:       item.claim_text || '',
     label:       normaliseVerdict(item.verdict),
     timestamp:   item.created_at || new Date().toISOString(),
@@ -64,19 +65,16 @@ export default function History() {
   const [error,    setError]    = useState(null);
   const [page,     setPage]     = useState(1);
   const [hasMore,  setHasMore]  = useState(false);
+  const [hidden,   setHidden]   = useState(false);
   const PAGE_SIZE = 20;
 
   const loadHistory = async (p = 1, replace = true) => {
     setLoading(true);
     setError(null);
+    setHidden(false);
     try {
       const raw = await fetchHistory(p, PAGE_SIZE);
-
-      // Mock mode returns [] — show sample data so the page isn't blank
-      const items = raw.length === 0 && IS_MOCK_MODE
-        ? SAMPLE_HISTORY
-        : raw.map(mapApiItem);
-
+      const items = raw.map(mapApiItem);
       setHistory(prev => replace ? items : [...prev, ...items]);
       setHasMore(raw.length >= PAGE_SIZE);
       setPage(p);
@@ -86,7 +84,7 @@ export default function History() {
         navigate('/login', { state: { from: '/history' } });
         return;
       }
-      setError(err.message || 'Failed to load history.');
+      setError('Unable to load your analysis history. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -96,144 +94,240 @@ export default function History() {
 
   const removeItem = (id) => setHistory(h => h.filter(i => i.id !== id));
 
-  const filtered = history.filter(item =>
-    item.claim.toLowerCase().includes(search.toLowerCase()) ||
-    item.id.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = search.trim()
+    ? history.filter(item => item.claim.toLowerCase().includes(search.toLowerCase()))
+    : history;
+
+  const visibleItems = hidden ? [] : filtered;
+
+  // ─── Unauthenticated gate ──────────────────────────────────────────────────
+  if (!isAuthenticated) {
+    return (
+      <div className="space-y-6 py-2 md:py-6 animate-in fade-in duration-500">
+        <div>
+          <h2 className="text-3xl md:text-4xl font-display-editorial font-bold text-on-surface">Analysis History</h2>
+          <p className="text-on-surface-variant text-sm mt-1">Your verified claims, saved to your account.</p>
+        </div>
+        <div className="flex flex-col items-center justify-center py-16 text-center gap-3 bg-surface-container-lowest border border-outline-variant rounded-xl deep-shadow">
+          <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center">
+            <LogIn size={20} className="text-outline" aria-hidden="true" />
+          </div>
+          <h4 className="text-lg font-display-editorial font-bold text-on-surface">Sign in to view your history</h4>
+          <p className="text-on-surface-variant text-sm max-w-sm mx-auto">
+            History is saved per account. Sign in to access your previous analyses and review past evidence.
+          </p>
+          <button
+            onClick={() => navigate('/login', { state: { from: '/history' } })}
+            className="mt-3 inline-flex items-center gap-2 bg-primary text-on-primary font-ui-header font-semibold py-2 px-5 rounded-lg hover:opacity-90 transition-all text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          >
+            <LogIn size={15} aria-hidden="true" /> Sign In
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8 py-2 md:py-6">
+    <div className="space-y-6 py-2 md:py-6 animate-in fade-in duration-500">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end gap-4 justify-between">
         <div>
-          <h2 className="text-3xl md:text-4xl font-display-editorial font-bold text-primary">Analysis History</h2>
-          <p className="text-on-surface-variant mt-1">
-            {loading ? 'Loading…' : `${history.length} claim${history.length !== 1 ? 's' : ''} analysed`}
-            {IS_MOCK_MODE && <span className="ml-2 text-xs text-tertiary-container font-semibold">(demo data)</span>}
+          <h2 className="text-3xl md:text-4xl font-display-editorial font-bold text-on-surface">Analysis History</h2>
+          <p className="text-on-surface-variant text-sm mt-1">
+            {loading
+              ? 'Loading your data…'
+              : history.length === 0
+              ? 'No analyses yet'
+              : `${history.length} claim${history.length !== 1 ? 's' : ''} analysed`
+            }
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
           <button
             onClick={() => loadHistory(1)}
             disabled={loading}
-            title="Refresh"
-            className="inline-flex items-center gap-2 text-sm text-on-surface-variant border border-outline-variant px-3 py-2 rounded-lg hover:bg-surface-container transition-all disabled:opacity-50"
+            title="Refresh history"
+            aria-label="Refresh history"
+            className="inline-flex items-center justify-center w-9 h-9 text-on-surface-variant border border-outline-variant rounded-lg hover:bg-surface-container transition-all disabled:opacity-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
           >
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} aria-hidden="true" />
           </button>
-          {history.length > 0 && (
+          {history.length > 0 && !hidden && (
             <button
-              onClick={() => setHistory([])}
-              title="Hides results from this view only — your saved history on the server is not affected. Click Refresh to reload."
-              aria-label="Hide all results from this view (server history is unaffected)"
-              className="inline-flex items-center gap-2 text-sm text-on-surface-variant hover:text-primary px-4 py-2 rounded-lg border border-outline-variant hover:border-primary/40 transition-all"
+              onClick={() => setHidden(true)}
+              title="Clear this view — your server history is unaffected. Refresh to reload."
+              aria-label="Clear this view (server history is unaffected)"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-on-surface-variant hover:text-primary px-3 h-9 rounded-lg border border-outline-variant hover:border-primary/40 transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
             >
-              <EyeOff size={16} /> Hide View
+              <EyeOff size={15} aria-hidden="true" /> Clear view
             </button>
           )}
         </div>
       </div>
 
       {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-outline" size={18} />
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Filter by claim or ID…"
-          className="w-full pl-12 pr-4 py-3 bg-surface-container-lowest border border-outline-variant rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-on-surface placeholder-outline"
-        />
-      </div>
+      {history.length > 0 && !hidden && (
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-outline pointer-events-none" size={18} aria-hidden="true" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search your analysis history…"
+            aria-label="Search analysis history"
+            className="w-full pl-11 pr-4 h-12 bg-surface-container-lowest border border-outline-variant rounded-xl focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-on-surface placeholder-outline text-sm shadow-sm"
+          />
+        </div>
+      )}
 
       {/* Error state */}
       {error && !loading && (
-        <div className="flex items-start gap-3 bg-error-container/40 border border-secondary/30 rounded-xl p-5 text-secondary">
-          <AlertCircle size={20} className="shrink-0 mt-0.5" />
+        <div className="flex items-start gap-3 bg-error-container/40 border border-secondary/30 rounded-xl p-4 text-secondary">
+          <AlertCircle size={18} className="shrink-0 mt-0.5" aria-hidden="true" />
           <div>
-            <p className="font-semibold text-sm">Failed to load history</p>
-            <p className="text-sm opacity-80 mt-0.5">{error}</p>
-            <button onClick={() => loadHistory(1)} className="mt-2 text-xs underline hover:no-underline">Retry</button>
+            <p className="font-semibold text-sm">Could not load history</p>
+            <p className="text-sm opacity-85 mt-0.5">{error}</p>
+            <button
+              onClick={() => loadHistory(1)}
+              className="mt-2 text-xs font-semibold underline hover:no-underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-secondary rounded"
+            >
+              Try again
+            </button>
           </div>
         </div>
       )}
 
       {/* Loading skeleton */}
       {loading && history.length === 0 && (
-        <div className="space-y-3 animate-pulse">
-          {[1,2,3].map(i => <div key={i} className="h-20 rounded-xl bg-surface-container-high" />)}
+        <div className="space-y-2 animate-pulse">
+          {[1, 2, 3, 4].map(i => <div key={i} className="h-20 rounded-xl bg-surface-container-high w-full" />)}
         </div>
       )}
 
-      {/* Empty state */}
-      {!loading && !error && filtered.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center">
-            <Clock size={28} className="text-outline" />
+      {/* Hidden state */}
+      {hidden && (
+        <div className="flex flex-col items-center justify-center py-16 text-center gap-2.5">
+          <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center">
+            <EyeOff size={22} className="text-outline" aria-hidden="true" />
           </div>
-          <h4 className="text-xl font-display-editorial text-on-surface-variant">No history found</h4>
-          <p className="text-on-surface-variant text-sm max-w-xs">
-            {search ? `No results for "${search}"` : 'Analyse a claim and it will appear here.'}
+          <p className="text-base font-display-editorial font-bold text-on-surface">View cleared</p>
+          <p className="text-sm text-on-surface-variant max-w-xs">Your history is still saved on the server.</p>
+          <button
+            onClick={() => loadHistory(1)}
+            className="mt-2 text-sm font-semibold text-primary border border-primary/30 px-4 py-1.5 rounded-lg hover:bg-primary/10 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+          >
+            Reload history
+          </button>
+        </div>
+      )}
+
+      {/* Empty state — no history at all */}
+      {!loading && !error && !hidden && history.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 text-center gap-2.5 bg-surface-container-lowest border border-outline-variant rounded-xl deep-shadow">
+          <div className="w-12 h-12 rounded-full bg-surface-container flex items-center justify-center">
+            <Clock size={22} className="text-outline" aria-hidden="true" />
+          </div>
+          <p className="text-base font-display-editorial font-bold text-on-surface">No analyses yet</p>
+          <p className="text-sm text-on-surface-variant max-w-xs">
+            Once you verify claims, they will appear here for easy reference.
           </p>
+          <button
+            onClick={() => navigate('/analysis')}
+            className="mt-2 text-sm font-semibold text-primary border border-primary/30 px-4 py-1.5 rounded-lg hover:bg-primary/10 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+          >
+            Go to Analysis
+          </button>
+        </div>
+      )}
+
+      {/* Empty search result */}
+      {!loading && !error && !hidden && history.length > 0 && filtered.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-12 text-center gap-2.5 border border-dashed border-outline-variant rounded-xl">
+          <p className="text-base font-display-editorial font-bold text-on-surface-variant">No results</p>
+          <p className="text-sm text-outline">No claims match "{search}".</p>
+          <button onClick={() => setSearch('')} className="text-sm font-medium text-primary hover:underline">
+            Clear search
+          </button>
         </div>
       )}
 
       {/* History list */}
-      {filtered.length > 0 && (
-        <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden deep-shadow">
-          <ul className="divide-y divide-outline-variant">
-            {filtered.map((item) => {
-              const config = getLabelConfig(item.label);
-              return (
-                <li
-                  key={item.id}
-                  className="p-5 hover:bg-surface-container-low transition-colors flex items-center justify-between gap-4 group"
-                >
-                  <div className="flex items-center gap-4 overflow-hidden flex-1">
-                    <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${config.dot}`} />
-                    <div className="min-w-0">
-                      <p className="font-claim-text text-base text-primary truncate">{item.claim}</p>
-                      <div className="flex items-center gap-3 mt-1 flex-wrap">
-                        <span className={`text-xs font-bold tracking-wider px-2 py-0.5 rounded-full border uppercase ${config.badge} ${config.text}`}>
+      {visibleItems.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {visibleItems.map((item) => {
+            const config = getLabelConfig(item.label);
+            return (
+              <div
+                key={item.id ?? item.claim}
+                className="group relative bg-surface-container-lowest border border-outline-variant rounded-xl transition-all duration-150 hover:border-primary/30 hover:shadow-sm focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-1 focus-within:border-primary"
+              >
+                <div className="flex items-center">
+                  <button
+                    className="flex-1 text-left py-4 pl-4 pr-2 flex items-center gap-4 min-w-0 outline-none"
+                    onClick={() => navigate('/analysis', { state: { initialClaim: item.claim } })}
+                    title="Re-analyse this claim"
+                    aria-label={`Re-analyse: ${item.claim}`}
+                  >
+                    {/* Icon block */}
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${config.badge}`}>
+                      <config.Icon size={18} aria-hidden="true" />
+                    </div>
+
+                    {/* Claim & Metadata */}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-claim-text text-sm md:text-base text-on-surface truncate group-hover:text-primary transition-colors">
+                        {item.claim}
+                      </p>
+                      <div className="flex items-center gap-x-3 gap-y-1 mt-1 flex-wrap">
+                        <span className={`text-[11px] font-bold tracking-wider uppercase ${config.color}`}>
                           {config.label}
                         </span>
-                        <span className="font-mono-technical text-xs text-outline">{item.id}</span>
-                        {item.sourceCount > 0 && (
-                          <span className="text-xs text-on-surface-variant">{item.sourceCount} sources</span>
-                        )}
                         {item.confidence !== null && (
-                          <span className="font-mono-technical text-xs text-outline">
-                            {Math.round(item.confidence * 100)}% confidence
+                          <span className="text-[11px] font-mono-technical text-outline">
+                            {Math.round(item.confidence * 100)}% conf
                           </span>
                         )}
+                        {item.sourceCount > 0 && (
+                          <span className="text-[11px] text-outline">
+                            {item.sourceCount} source{item.sourceCount !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                        <span className="text-[11px] text-outline ml-auto hidden sm:block">
+                          {formatRelativeTime(item.timestamp)}
+                        </span>
                       </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="font-mono-technical text-xs text-outline hidden sm:block">
-                      {formatRelativeTime(item.timestamp)}
-                    </span>
+
+                    {/* Go arrow */}
+                    <div className="shrink-0 text-outline opacity-0 group-hover:opacity-100 transition-opacity px-2 hidden sm:block">
+                      <ChevronRight size={18} aria-hidden="true" />
+                    </div>
+                  </button>
+
+                  {/* Delete action */}
+                  <div className="pr-3 shrink-0">
                     <button
-                      onClick={() => removeItem(item.id)}
-                      className="text-outline hover:text-secondary opacity-0 group-hover:opacity-100 transition-all"
-                      title="Remove"
+                      onClick={() => removeItem(item.id ?? item.claim)}
+                      className="text-outline hover:text-secondary opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-all p-2 rounded-lg hover:bg-error-container/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:opacity-100"
+                      title="Remove from this view"
+                      aria-label="Remove from this view"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={16} aria-hidden="true" />
                     </button>
                   </div>
-                </li>
-              );
-            })}
-          </ul>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
       {/* Load more */}
-      {hasMore && !loading && (
-        <div className="text-center">
+      {hasMore && !loading && !hidden && (
+        <div className="text-center pt-2">
           <button
             onClick={() => loadHistory(page + 1, false)}
-            className="text-sm font-semibold text-primary border border-primary/30 px-5 py-2 rounded-lg hover:bg-primary/10 transition-colors"
+            className="text-sm font-semibold text-primary border border-outline-variant px-5 py-2 rounded-lg hover:border-primary/50 hover:bg-surface-container transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             Load more
           </button>

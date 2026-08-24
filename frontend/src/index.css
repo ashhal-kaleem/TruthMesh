@@ -70,6 +70,13 @@
     background-color: var(--color-primary-fixed);
     color: var(--color-on-primary-fixed);
   }
+
+  /* ─── Keyboard focus ring — uses primary token ── */
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
 }
 
 @layer utilities {
@@ -92,13 +99,13 @@
     border-top: 4px solid transparent;
   }
   .fact-card.veracity-high {
-    border-top-color: #0ea5e9;
+    border-top-color: var(--color-primary);
   }
   .fact-card.veracity-low {
-    border-top-color: #eab308;
+    border-top-color: var(--color-tertiary-container);
   }
   .fact-card.veracity-critical {
-    border-top-color: #af2b3e;
+    border-top-color: var(--color-secondary);
   }
 
   /* ─── Page entry animation ─────────────────────── */
