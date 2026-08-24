@@ -115,11 +115,29 @@ _current_verdict = "SUPPORT"
 
 def fake_generate(self, messages, stop=None, run_manager=None, **kwargs):
     global _call_index
-    responses = [PLAN_RESPONSE, EVIDENCE_RESPONSE, VERDICT_RESPONSES[_current_verdict]]
+    # evidence_node makes ZERO Gemini calls — only plan (index 0) and verdict (index 1) arrive here
+    responses = [PLAN_RESPONSE, VERDICT_RESPONSES[_current_verdict]]
     response_text = responses[min(_call_index, len(responses) - 1)]
     _call_index += 1
     from langchain_core.outputs import ChatGeneration, ChatResult
     return ChatResult(generations=[ChatGeneration(message=AIMessage(content=response_text))])
+
+
+_FAKE_EVIDENCE_ITEM = json.dumps({
+    "url": "https://example.com/test",
+    "title": "Test Title",
+    "excerpt": "Test excerpt about the claim.",
+    "credibility_score": "High",
+    "bias_label": "Least Biased",
+})
+
+
+@pytest.fixture(scope="session", autouse=True)
+def patch_search_retrieve_news():
+    """Prevent evidence_node from hitting Serper for the entire test session."""
+    with patch("src.main_agent.search_retrieve_news") as mock_tool:
+        mock_tool.invoke = lambda args: _FAKE_EVIDENCE_ITEM
+        yield mock_tool
 
 
 @pytest.fixture(autouse=True)

@@ -13,7 +13,12 @@ import os
 import whois
 import urllib.parse
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 load_dotenv()
+
+# Maximum seconds to wait for a WHOIS lookup before giving up and accepting
+# the URL as "probably legitimate" (avoids 30-second stalls per query).
+_WHOIS_TIMEOUT_S = 3
 
 SERPER_API_KEY = os.getenv("SERPER_API_KEY")
 
@@ -102,12 +107,35 @@ class SearchEngineRetriever:
             return True
 
         try:
-            domain_info = whois.whois(domain)
-            if domain_info.creation_date:
-                creation_date = (domain_info.creation_date[0]
-                                 if isinstance(domain_info.creation_date, list)
-                                 else domain_info.creation_date)
-                if (datetime.now() - creation_date).days / 365 > 5:
+            import socket as _socket
+
+            def _whois_with_timeout(d):
+                # Set a per-thread socket timeout so the whois library's own
+                # blocking recv() also respects the cap (not just our future).
+                _socket.setdefaulttimeout(_WHOIS_TIMEOUT_S)
+                try:
+                    return whois.whois(d)
+                finally:
+                    _socket.setdefaulttimeout(None)  # restore default
+
+            with ThreadPoolExecutor(max_workers=1) as _ex:
+                _fut = _ex.submit(_whois_with_timeout, domain)
+                try:
+                    domain_info = _fut.result(timeout=_WHOIS_TIMEOUT_S + 1)
+                    if domain_info and domain_info.creation_date:
+                        creation_date = (
+                            domain_info.creation_date[0]
+                            if isinstance(domain_info.creation_date, list)
+                            else domain_info.creation_date
+                        )
+                        if (datetime.now() - creation_date).days / 365 > 5:
+                            return True
+                except (FuturesTimeoutError, Exception):
+                    # WHOIS timed out or errored — accept the domain rather than
+                    # discarding an otherwise valid Serper result.
+                    logging.debug(
+                        "_check_valid_url: WHOIS timeout/error for %r — accepting domain", domain
+                    )
                     return True
         except Exception:
             pass

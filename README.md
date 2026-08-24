@@ -1,13 +1,11 @@
-# Towards Robust Fact-Checking: A Multi-Agent System with Advanced Evidence Retrieval
+# TruthMesh — AI-Powered Multi-Agent Fact-Checking
 
 A sophisticated multi-agent fact-checking system that combines advanced evidence retrieval techniques to verify factual claims across diverse domains.
 
 ![TruthMesh System Overview](fact-check.png)
 
-## Contributors
-- Tam Trinh
-- Manh Nguyen
-- Hy Truong Son (Correspondent / PI)
+## Author
+- **Ashhal Kaleem** — [github.com/ashhal-kaleem](https://github.com/ashhal-kaleem)
 ## 📋 Requirements
 
 - Python 3.11 or higher
@@ -16,7 +14,7 @@ A sophisticated multi-agent fact-checking system that combines advanced evidence
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-username/TruthMesh.git
+   git clone https://github.com/ashhal-kaleem/TruthMesh.git
    cd TruthMesh
    ```
 
@@ -108,16 +106,6 @@ GOOGLE_API_KEY=your_google_api_key
 SERPER_API_KEY=your_serper_api_key_here
 ```
 
-## Please cite our work!
+## 🔗 Repository
 
-```bibtex
-@misc{trinh2025robustfactcheckingmultiagentadvanced,
-      title={Towards Robust Fact-Checking: A Multi-Agent System with Advanced Evidence Retrieval}, 
-      author={Tam Trinh and Manh Nguyen and Truong-Son Hy},
-      year={2025},
-      eprint={2506.17878},
-      archivePrefix={arXiv},
-      primaryClass={cs.AI},
-      url={https://arxiv.org/abs/2506.17878}, 
-}
-```
+[https://github.com/ashhal-kaleem/TruthMesh](https://github.com/ashhal-kaleem/TruthMesh)

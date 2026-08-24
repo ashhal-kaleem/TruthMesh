@@ -1,13 +1,17 @@
 """
-test_mock_pipeline.py — verify 3-call architecture without hitting Gemini quota.
+test_mock_pipeline.py — verify 2-call architecture without hitting Gemini quota.
 
-Patches ChatGoogleGenerativeAI._generate to return canned responses that match
-the schemas expected by plan_node, evidence_node and verdict_node.  The test:
-  1. Counts every _generate call — asserts exactly 3.
+evidence_node is now a deterministic Python loop (zero Gemini calls), so only
+plan_node and verdict_node invoke the LLM — exactly 2 calls total.
+
+Patches ChatGoogleGenerativeAI._generate to return canned responses and also
+patches search_retrieve_news.invoke so evidence retrieval never hits Serper.
+The test:
+  1. Counts every _generate call — asserts exactly 2.
   2. Verifies each node received and returned well-formed data.
-  3. Checks no supervisor / routing calls occur.
+  3. Confirms no supervisor / routing calls occur.
 
-Run:  python P:\\TruthMesh\\test_mock_pipeline.py
+Run:  python P:\\FactAgent\\tests\\test_mock_pipeline.py
 """
 import sys
 import os
@@ -95,12 +99,13 @@ _current_target = "SUPPORT"
 def fake_generate(self, messages, stop=None, run_manager=None, **kwargs):
     global _call_index, _call_count
     _call_count += 1
-    
-    responses = [PLAN_RESPONSE, EVIDENCE_RESPONSE, VERDICT_RESPONSES[_current_target]]
+
+    # evidence_node makes ZERO Gemini calls — only plan and verdict reach here
+    responses = [PLAN_RESPONSE, VERDICT_RESPONSES[_current_target]]
     response_text = responses[min(_call_index, len(responses) - 1)]
     _call_index += 1
 
-    node_hints = {0: "plan_node", 1: "evidence_node", 2: "verdict_node"}
+    node_hints = {0: "plan_node", 1: "verdict_node"}
     label = node_hints.get(_call_count - 1, f"call #{_call_count}")
     _call_log.append(label)
     print(f"  [Mock Gemini call #{_call_count} -> {label}]")
@@ -109,10 +114,27 @@ def fake_generate(self, messages, stop=None, run_manager=None, **kwargs):
     msg = AIMessage(content=response_text)
     return ChatResult(generations=[ChatGeneration(message=msg)])
 
+# ── Fake Serper/retrieval response (evidence_node calls this) ─────────────────
+
+FAKE_EVIDENCE_ITEM = json.dumps({
+    "url": "https://example.com/eiffel-tower",
+    "title": "Eiffel Tower History",
+    "excerpt": "The Eiffel Tower stands in Paris, France.",
+    "credibility_score": "High",
+    "bias_label": "Least Biased",
+})
+
+def fake_search_invoke(args):
+    """Return a canned JSON evidence item so no Serper API calls are made."""
+    return FAKE_EVIDENCE_ITEM
+
 # ── Run test ──────────────────────────────────────────────────────────────────
-# ── Run test ──────────────────────────────────────────────────────────────────
-print("Patching ChatGoogleGenerativeAI._generate with mock...")
-with patch.object(ChatGoogleGenerativeAI, "_generate", fake_generate):
+print("Patching ChatGoogleGenerativeAI._generate and search_retrieve_news with mocks...")
+with (
+    patch.object(ChatGoogleGenerativeAI, "_generate", fake_generate),
+    patch("src.main_agent.search_retrieve_news") as mock_tool,
+):
+    mock_tool.invoke = fake_search_invoke
     from src.main_agent import TruthMesh
     agent = TruthMesh(dataset="feverous")
 
@@ -125,7 +147,7 @@ with patch.object(ChatGoogleGenerativeAI, "_generate", fake_generate):
         _call_count = 0
         _call_log = []
         
-        print(f"Running mocked 3-call pipeline for target label: {target_label} (Text only)...\n")
+        print(f"Running mocked 2-call pipeline for target label: {target_label} (Text only)...\n")
         result = agent.process_claim(claim, verbose=False)
 
         print("\n=== Result ===")
@@ -139,8 +161,8 @@ with patch.object(ChatGoogleGenerativeAI, "_generate", fake_generate):
 
         # ── Assertions ────────────────────────────────────────────────────────────────
         errors = []
-        if _call_count != 3:
-            errors.append(f"Expected 3 Gemini calls, got {_call_count}")
+        if _call_count != 2:
+            errors.append(f"Expected 2 Gemini calls (plan + verdict), got {_call_count}")
         if result.get("label") != target_label:
             errors.append(f"Expected label='{target_label}', got '{result.get('label')}'")
         if not result.get("explanation"):
@@ -152,7 +174,7 @@ with patch.object(ChatGoogleGenerativeAI, "_generate", fake_generate):
                 print(f"  ✗ {e}")
             sys.exit(1)
         else:
-            print(f"\n[PASS] Exactly 3 Gemini calls, correct label, explanation present for {target_label} (Text only).")
+            print(f"\n[PASS] Exactly 2 Gemini calls, correct label, explanation present for {target_label} (Text only).")
             print("-" * 40)
 
         # ── Test with Image ───────────────────────────────────────────────────────────
@@ -161,12 +183,12 @@ with patch.object(ChatGoogleGenerativeAI, "_generate", fake_generate):
         _call_log = []
         image_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "fact-check.png")
         
-        print(f"Running mocked 3-call pipeline for target label: {target_label} (With Image)...\n")
+        print(f"Running mocked 2-call pipeline for target label: {target_label} (With Image)...\n")
         result_with_img = agent.process_claim(claim, image=image_path, verbose=False)
 
         errors_img = []
-        if _call_count != 3:
-            errors_img.append(f"Expected 3 Gemini calls, got {_call_count}")
+        if _call_count != 2:
+            errors_img.append(f"Expected 2 Gemini calls (plan + verdict), got {_call_count}")
         if result_with_img.get("label") != target_label:
             errors_img.append(f"Expected label='{target_label}', got '{result_with_img.get('label')}'")
         if not result_with_img.get("explanation"):
@@ -178,7 +200,7 @@ with patch.object(ChatGoogleGenerativeAI, "_generate", fake_generate):
                 print(f"  ✗ {e}")
             sys.exit(1)
         else:
-            print(f"\n[PASS] Exactly 3 Gemini calls, correct label, explanation present for {target_label} (With Image).")
+            print(f"\n[PASS] Exactly 2 Gemini calls, correct label, explanation present for {target_label} (With Image).")
             print("-" * 40)
 
 print("\n=== All Mock pipeline tests PASSED ===")
