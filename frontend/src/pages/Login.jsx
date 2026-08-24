@@ -40,12 +40,24 @@ export default function Login() {
       } else {
         ({ access_token, username: name } = await authRegister(username.trim(), email.trim(), password));
       }
+      // setSession is already called inside authLogin/authRegister;
+      // call login() here to sync React state without a page reload.
       login(access_token, { username: name });
       navigate(from, { replace: true });
     } catch (err) {
-      setError(err instanceof ApiError
-        ? err.message
-        : 'Network error — check your connection.');
+      if (err instanceof ApiError) {
+        if (err.status === 401) {
+          setError('Incorrect username or password.');
+        } else if (err.status === 409) {
+          setError(err.message);
+        } else if (err.status >= 500) {
+          setError('Server error — please try again in a moment.');
+        } else {
+          setError(err.message || 'Something went wrong.');
+        }
+      } else {
+        setError('Network error — check your connection and try again.');
+      }
     } finally {
       setLoading(false);
     }

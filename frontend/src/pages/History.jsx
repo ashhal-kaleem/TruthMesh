@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, ShieldX, HelpCircle, Clock, Trash2, Search,
          Loader2, AlertCircle, RefreshCw, EyeOff, LogIn, ChevronRight } from 'lucide-react';
-import { fetchHistory, ApiError } from '../api';
+import { fetchHistory, ApiError, normaliseVerdict } from '../api';
 import { useAuth } from '../context/AuthContext';
-import { normaliseVerdict } from '../api';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function getLabelConfig(label) {
@@ -42,14 +41,43 @@ function formatRelativeTime(iso) {
   return 'Just now';
 }
 
+const CREDIBILITY_MAP = { high: 0.9, medium: 0.6, low: 0.25, unknown: 0.4 };
+function credibilityToFloat(raw) {
+  if (typeof raw === 'number') return raw;
+  return CREDIBILITY_MAP[(raw || '').toLowerCase()] ?? 0.4;
+}
+
 function mapApiItem(item) {
+  // Build the full normalised result so Analysis.jsx can display it without
+  // re-running the pipeline when the user clicks this history item.
+  const citations = (item.citations || []).map(c => ({
+    title:             c.title   || '',
+    url:               c.url     || '',
+    domain:            (() => { try { return new URL(c.url).hostname.replace(/^www\./, ''); } catch { return ''; } })(),
+    excerpt:           c.excerpt || '',
+    stance:            normaliseVerdict(c.bias_label) === 'NOT ENOUGH INFO' ? 'NEUTRAL' : normaliseVerdict(c.bias_label),
+    reliability_score: credibilityToFloat(c.credibility_score),
+    bias_label:        c.bias_label || 'Unknown',
+  }));
+  const normalisedResult = {
+    claim:              item.claim_text || '',
+    verdict:            normaliseVerdict(item.verdict),
+    confidence:         typeof item.confidence === 'number' ? item.confidence : 0.5,
+    reasoning:          item.reasoning || '',
+    evidence_citations: citations,
+    past_context_used:  item.past_context_used || false,
+    image_analyzed:     item.image_analyzed    || false,
+    _historyId:         item.id,
+    _createdAt:         item.created_at || null,
+  };
   return {
-    id:          item.id ?? null,
-    claim:       item.claim_text || '',
-    label:       normaliseVerdict(item.verdict),
-    timestamp:   item.created_at || new Date().toISOString(),
-    sourceCount: Array.isArray(item.citations) ? item.citations.length : 0,
-    confidence:  item.confidence ?? null,
+    id:               item.id ?? null,
+    claim:            item.claim_text || '',
+    label:            normaliseVerdict(item.verdict),
+    timestamp:        item.created_at || new Date().toISOString(),
+    sourceCount:      Array.isArray(item.citations) ? item.citations.length : 0,
+    confidence:       item.confidence ?? null,
+    normalisedResult, // full result for instant restore in Analysis.jsx
   };
 }
 
@@ -264,9 +292,9 @@ export default function History() {
                 <div className="flex items-center">
                   <button
                     className="flex-1 text-left py-4 pl-4 pr-2 flex items-center gap-4 min-w-0 outline-none"
-                    onClick={() => navigate('/analysis', { state: { initialClaim: item.claim } })}
-                    title="Re-analyse this claim"
-                    aria-label={`Re-analyse: ${item.claim}`}
+                    onClick={() => navigate('/analysis', { state: { historyResult: item.normalisedResult } })}
+                    title="View original result"
+                    aria-label={`View original result: ${item.claim}`}
                   >
                     {/* Icon block */}
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${config.badge}`}>
@@ -274,7 +302,7 @@ export default function History() {
                     </div>
 
                     {/* Claim & Metadata */}
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 overflow-hidden">
                       <p className="font-claim-text text-sm md:text-base text-on-surface truncate group-hover:text-primary transition-colors">
                         {item.claim}
                       </p>
@@ -292,7 +320,7 @@ export default function History() {
                             {item.sourceCount} source{item.sourceCount !== 1 ? 's' : ''}
                           </span>
                         )}
-                        <span className="text-[11px] text-outline ml-auto hidden sm:block">
+                        <span className="text-[11px] text-outline ml-auto">
                           {formatRelativeTime(item.timestamp)}
                         </span>
                       </div>

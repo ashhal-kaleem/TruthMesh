@@ -330,9 +330,9 @@ function EvidenceExplorer({ sources }) {
   return (
     <div>
       {/* Section heading + controls in one compact bar */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-4">
         {/* Filter tabs */}
-        <div className="flex items-center gap-1" role="group" aria-label="Filter evidence by stance">
+        <div className="flex items-center gap-1 flex-wrap" role="group" aria-label="Filter evidence by stance">
           {STANCE_FILTERS.map(f => {
             const count    = counts[f] ?? 0;
             const isActive = filter === f;
@@ -598,12 +598,26 @@ export default function Analysis() {
   const hasFired = useRef(false);
   useEffect(() => {
     if (hasFired.current) return;
-    const initial = location.state?.initialClaim;
-    if (!initial) return;
-    hasFired.current = true;
-    navigate('.', { replace: true, state: {} });
-    setClaim(initial);
-    runAnalysis(initial);
+    const historyResult = location.state?.historyResult;
+    const initialClaim  = location.state?.initialClaim;
+
+    if (historyResult) {
+      // Restore a stored history result instantly — no LLM call needed.
+      hasFired.current = true;
+      navigate('.', { replace: true, state: {} });
+      setClaim(historyResult.claim || '');
+      setResult(historyResult);
+      setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+      return;
+    }
+
+    if (initialClaim) {
+      // Re-run a fresh analysis from the claim text.
+      hasFired.current = true;
+      navigate('.', { replace: true, state: {} });
+      setClaim(initialClaim);
+      runAnalysis(initialClaim);
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const runAnalysis = async (text) => {
@@ -714,7 +728,7 @@ export default function Analysis() {
             {!preview && <div className="hidden md:block w-px bg-outline-variant/60 self-stretch my-3" />}
 
             {/* Controls column */}
-            <div className="flex items-end md:flex-col justify-end gap-2 p-2.5">
+            <div className="flex items-center md:items-end md:flex-col justify-end gap-2 p-2.5">
               {/* Image attach */}
               <input
                 ref={fileRef}

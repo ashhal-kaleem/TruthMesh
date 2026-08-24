@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Globe, ShieldCheck, Wifi, WifiOff, Loader2, CheckCircle2, Info } from 'lucide-react';
-import { pingApi, ApiError } from '../api';
+import { pingApi } from '../api';
 
 // ─── Runtime config (never hardcoded) ────────────────────────────────────────
 const API_BASE     = import.meta.env.VITE_API_BASE     || 'http://localhost:8000';
@@ -8,10 +8,10 @@ const IS_MOCK_MODE = import.meta.env.VITE_MOCK_MODE === 'true';
 
 // ─── API health check ─────────────────────────────────────────────────────────
 function PingButton() {
-  const [state, setState] = useState('idle'); // idle | loading | ok | error
+  const [state, setState] = useState('loading'); // idle | loading | ok | error
   const [info,  setInfo]  = useState('');
 
-  const handlePing = async () => {
+  const doPing = async () => {
     setState('loading');
     setInfo('');
     try {
@@ -23,6 +23,11 @@ function PingButton() {
       setInfo('');
     }
   };
+
+  // Auto-check on first render so the status is immediately visible.
+  useEffect(() => { doPing(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handlePing = () => doPing();
 
   return (
     <div className="flex items-center gap-3 bg-surface-container-low border border-outline-variant rounded-lg p-1 pr-4 transition-all">
@@ -59,12 +64,12 @@ function PingButton() {
 // ─── Setting row layout ───────────────────────────────────────────────────────
 function SettingRow({ label, description, children }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-5 border-b border-outline-variant last:border-none">
-      <div className="flex-1">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-5 border-b border-outline-variant last:border-none">
+      <div className="flex-1 min-w-0">
         <p className="font-ui-header font-semibold text-on-surface text-sm">{label}</p>
         {description && <p className="text-on-surface-variant text-sm mt-0.5">{description}</p>}
       </div>
-      <div className="shrink-0">{children}</div>
+      <div className="shrink-0 min-w-0 max-w-full sm:max-w-[260px] overflow-hidden">{children}</div>
     </div>
   );
 }
@@ -93,7 +98,10 @@ export default function Settings() {
           label="API Endpoint"
           description="The active claim-verification backend URL."
         >
-          <span className="font-mono-technical text-xs bg-surface-container px-3 py-1.5 rounded border border-outline-variant text-on-surface break-all text-right max-w-[240px] block">
+          <span
+            title={API_BASE}
+            className="font-mono-technical text-xs bg-surface-container px-3 py-1.5 rounded border border-outline-variant text-on-surface block truncate w-full"
+          >
             {API_BASE}
           </span>
         </SettingRow>
@@ -110,7 +118,7 @@ export default function Settings() {
           description="Maximum wait time before a request is aborted."
         >
           <span className="font-mono-technical text-xs text-on-surface bg-surface-container px-3 py-1.5 rounded border border-outline-variant inline-block text-right">
-            60s <span className="opacity-60">(analysis)</span> · 15s <span className="opacity-60">(auth)</span>
+            120s <span className="opacity-60">(analysis)</span> · 15s <span className="opacity-60">(auth)</span>
           </span>
         </SettingRow>
 

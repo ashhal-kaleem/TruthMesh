@@ -209,7 +209,7 @@ export default function Layout({ children }) {
         </div>
 
         {/* Footer */}
-        <footer className="mt-auto px-4 md:px-10 lg:px-16 py-6 border-t border-outline-variant bg-surface-container-lowest flex flex-col md:flex-row justify-between items-center gap-4">
+        <footer className="mt-auto px-4 md:px-10 lg:px-16 py-6 border-t border-outline-variant bg-surface-container-lowest flex flex-col sm:flex-row justify-between items-center gap-4 text-center sm:text-left">
           <span className="text-xs font-semibold tracking-widest text-outline uppercase">
             © {new Date().getFullYear()} TruthMesh AI
           </span>

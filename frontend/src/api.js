@@ -223,10 +223,17 @@ export async function authLogin(username, password) {
     body:    JSON.stringify({ username, password }),
   }, 15_000);
   if (!res.ok) {
-    const msg = await res.text().catch(() => 'Login failed');
+    let msg = 'Login failed';
+    try {
+      const body = await res.json();
+      msg = body.detail || body.message || msg;
+    } catch {
+      msg = await res.text().catch(() => msg);
+    }
     throw new ApiError(msg, res.status);
   }
   const { access_token } = await res.json();
+  // Backend only returns access_token — keep username from the caller's input.
   setSession(access_token, { username });
   return { access_token, username };
 }
@@ -245,10 +252,17 @@ export async function authRegister(username, email, password) {
     body:    JSON.stringify({ username, email, password }),
   }, 15_000);
   if (!res.ok) {
-    const msg = await res.text().catch(() => 'Registration failed');
+    let msg = 'Registration failed';
+    try {
+      const body = await res.json();
+      msg = body.detail || body.message || msg;
+    } catch {
+      msg = await res.text().catch(() => msg);
+    }
     throw new ApiError(msg, res.status);
   }
   const { access_token } = await res.json();
+  // Backend only returns access_token — keep username from the caller's input.
   setSession(access_token, { username });
   return { access_token, username };
 }
@@ -275,6 +289,55 @@ export async function fetchHistory(page = 1, page_size = 20) {
   }
   if (!res.ok) throw new ApiError(`History fetch failed: ${res.status}`, res.status);
   return res.json();
+}
+
+/**
+ * GET /me/history/{id}  (requires auth)
+ * Fetches a single stored claim record and normalises it into the same
+ * internal model shape returned by checkClaim(), so Analysis.jsx can
+ * display it directly without re-running the LLM pipeline.
+ * Throws ApiError(401) if token missing/expired, ApiError(404) if not found.
+ */
+export async function fetchHistoryItem(id) {
+  if (IS_MOCK_MODE) {
+    await mockDelay(200);
+    return null;  // mock mode has no persistent records
+  }
+  const res = await fetchWithTimeout(
+    `${API_BASE}/me/history/${id}`,
+    { headers: { ...authHeaders() } },
+    15_000,
+  );
+  if (res.status === 401) {
+    clearSession();
+    throw new ApiError('Session expired. Please log in again.', 401);
+  }
+  if (res.status === 404) throw new ApiError(`History item ${id} not found`, 404);
+  if (!res.ok) throw new ApiError(`History item fetch failed: ${res.status}`, res.status);
+  const raw = await res.json();
+  // raw is a ClaimHistoryItem: { id, claim_text, verdict, confidence, reasoning,
+  //   image_analyzed, past_context_used, created_at, citations: [...] }
+  const citations = (raw.citations || []).map(c => ({
+    title:             c.title   || '',
+    url:               c.url     || '',
+    domain:            (() => { try { return new URL(c.url).hostname.replace(/^www\./, ''); } catch { return ''; } })(),
+    excerpt:           c.excerpt || '',
+    stance:            normaliseVerdict(c.bias_label) === 'NOT ENOUGH INFO' ? 'NEUTRAL' : normaliseVerdict(c.bias_label),
+    reliability_score: credibilityToFloat(c.credibility_score),
+    bias_label:        c.bias_label || 'Unknown',
+  }));
+  return {
+    claim:              raw.claim_text || '',
+    verdict:            normaliseVerdict(raw.verdict),
+    confidence:         typeof raw.confidence === 'number' ? raw.confidence : 0.5,
+    reasoning:          raw.reasoning || '',
+    evidence_citations: citations,
+    past_context_used:  raw.past_context_used || false,
+    image_analyzed:     raw.image_analyzed    || false,
+    // Extra metadata preserved for display
+    _historyId:         raw.id,
+    _createdAt:         raw.created_at || null,
+  };
 }
 
 // ─── Health check ──────────────────────────────────────────────────────────────
