@@ -16,6 +16,7 @@ The RAG vector store is initialised once at startup via `create_vector_store()`.
 
 import base64
 import os
+import filetype
 from contextlib import asynccontextmanager
 from typing import List, Optional
 
@@ -66,7 +67,14 @@ app = FastAPI(
 )
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
-_allowed_origins = os.getenv("CORS_ORIGINS", "*").split(",")
+_allowed_origins = [
+    origin.strip() 
+    for origin in os.getenv("CORS_ORIGINS", "").split(",") 
+    if origin.strip()
+]
+if not _allowed_origins:
+    _allowed_origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
@@ -294,6 +302,46 @@ def my_history(
     ]
 
 
+@app.get("/me/history/{claim_id}", response_model=ClaimHistoryItem)
+def get_history_item(
+    claim_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_current_user),
+):
+    """Return a single claim history record by ID for the authenticated user."""
+    user_id = int(current_user["sub"])
+    record = (
+        db.query(ClaimRecord)
+        .filter(ClaimRecord.id == claim_id, ClaimRecord.user_id == user_id)
+        .first()
+    )
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Claim record {claim_id} not found",
+        )
+    return ClaimHistoryItem(
+        id=record.id,
+        claim_text=record.claim_text,
+        verdict=record.verdict,
+        confidence=record.confidence,
+        reasoning=record.reasoning,
+        image_analyzed=record.image_analyzed,
+        past_context_used=record.past_context_used,
+        created_at=record.created_at.isoformat(),
+        citations=[
+            EvidenceCitation(
+                url=c.url,
+                title=c.title,
+                excerpt=c.excerpt,
+                credibility_score=c.credibility_score,
+                bias_label=c.bias_label,
+            )
+            for c in record.citations
+        ],
+    )
+
+
 # ── Health check ──────────────────────────────────────────────────────────────
 
 @app.get("/")
@@ -324,11 +372,24 @@ def check_claim(
     image_base64: Optional[str] = None
     if image:
         content = image.file.read()
+        
+        # Enforce 5MB limit
+        if len(content) > 5 * 1024 * 1024:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="Image file too large. Maximum size is 5 MB."
+            )
+            
+        # Validate actual MIME type
+        kind = filetype.guess(content)
+        if kind is None or not kind.mime.startswith("image/"):
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail="Invalid image file."
+            )
+
         encoded = base64.b64encode(content).decode("utf-8")
-        filename = image.filename.lower()
-        ext = filename.rsplit(".", 1)[-1] if "." in filename else "jpeg"
-        mime_type = f"image/{ext}" if ext in ("png", "jpeg", "jpg", "webp") else "image/jpeg"
-        image_base64 = f"data:{mime_type};base64,{encoded}"
+        image_base64 = f"data:{kind.mime};base64,{encoded}"
 
     # ── Run the 3-call pipeline ───────────────────────────────────────────────
     raw: dict = agent.process_claim(claim=claim, image=image_base64, verbose=False)

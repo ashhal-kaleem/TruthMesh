@@ -20,4 +20,4 @@ services:
       - key: ENVIRONMENT
         value: production
       - key: CORS_ORIGINS
-        value: "*"     # Replace with your Vercel URL in production
+        value: "https://truthmesh-ai.vercel.app,http://localhost:5173,http://localhost:5176"
