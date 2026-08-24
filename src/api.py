@@ -19,6 +19,14 @@ import os
 from contextlib import asynccontextmanager
 from typing import List, Optional
 
+# ── Load .env BEFORE any src.* import ────────────────────────────────────────
+# database.py and auth.py both read DATABASE_URL / JWT_SECRET_KEY at module
+# level (import time).  dotenv must populate os.environ first, otherwise those
+# modules capture the hard-coded defaults (sqlite / insecure dev secret).
+from dotenv import load_dotenv
+load_dotenv()
+# ─────────────────────────────────────────────────────────────────────────────
+
 from fastapi import Depends, FastAPI, Form, HTTPException, Query, UploadFile, File, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field

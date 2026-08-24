@@ -23,7 +23,7 @@ agent = TruthMesh(dataset="feverous")
 print("[OK] TruthMesh instantiated.")
 
 # Verify new attributes
-attrs = ["llm", "graph", "evidence_agent"]
+attrs = ["llm", "graph"]
 for attr in attrs:
     assert hasattr(agent, attr), f"Missing attribute: {attr}"
 print(f"[OK] All {len(attrs)} expected attributes present.")

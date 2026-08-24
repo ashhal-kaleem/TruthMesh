@@ -3,11 +3,11 @@ vector_store.py — Pluggable vector store factory for TruthMesh RAG layer.
 
 Controlled by VECTOR_BACKEND env var:
   "fake"     → InMemoryVectorStore + FakeEmbeddings  (default; dev / test)
-  "pgvector" → PostgreSQL pgvector + Google text-embedding-004 API (production)
+  "pgvector" → PostgreSQL pgvector + Google gemini-embedding-2 API (production)
 
 Production design principles:
   - No local model files — embeddings are generated via the Google Gemini API
-    (model: text-embedding-004, 768 dimensions, free quota available)
+    (model: gemini-embedding-2, 768 dimensions, free quota available)
   - No local vector-file storage — vectors are stored in a PostgreSQL table
     with the pgvector extension enabled (Supabase free tier recommended)
   - The same DATABASE_URL used for auth/history also stores RAG vectors
@@ -18,7 +18,7 @@ Both backends expose an identical interface:
 
 Production requirements (no extra pip packages beyond psycopg2-binary):
   - DATABASE_URL → PostgreSQL instance with pgvector extension enabled
-  - GOOGLE_API_KEY → for Google text-embedding-004
+  - GOOGLE_API_KEY → for Google gemini-embedding-2
 
 Test requirements (VECTOR_BACKEND=fake — default):
   - No external services required
@@ -75,10 +75,16 @@ class _PgVectorStore:
                 auth / claim history (DATABASE_URL). Supabase free tier has
                 pgvector pre-installed. No local file or index storage.
 
-    Embeddings: Google text-embedding-004 API via google-generativeai.
+    Embeddings: Google gemini-embedding-2 API via google-genai.
                 768 dimensions. Free quota; separate from chat LLM quota.
 
     Deduplication: content-level — exact duplicate claims are not re-embedded.
+
+    Connection: uses psycopg (v3) instead of psycopg2.  psycopg2 2.9+ fails
+                against the Supabase transaction pooler (PgBouncer, port 6543)
+                with "server didn't return client encoding" because PgBouncer
+                does not echo that parameter in the startup handshake.  psycopg
+                v3 handles this correctly without any workarounds.
 
     Set VECTOR_BACKEND=pgvector to activate this backend.
     """
@@ -114,33 +120,41 @@ class _PgVectorStore:
             )
         self._db_url = db_url
         self._init_table()
-        log.info("[vector_store] pgvector backend ready (Google text-embedding-004)")
+        log.info("[vector_store] pgvector backend ready (Google gemini-embedding-2)")
 
     # ── Internal helpers ───────────────────────────────────────────────────────
 
     def _connect(self):
-        """Open and return a new psycopg2 connection."""
-        import psycopg2
-        return psycopg2.connect(self._db_url)
+        """Open and return a new psycopg connection (psycopg v3).
+
+        psycopg2 2.9+ fails against the Supabase transaction pooler (PgBouncer,
+        port 6543) with "server didn't return client encoding" because PgBouncer
+        does not echo that startup parameter.  psycopg v3 handles the pooler
+        handshake correctly and is a drop-in replacement for this usage.
+        """
+        import psycopg
+        return psycopg.connect(self._db_url)
 
     def _embed(self, text: str) -> List[float]:
         """
-        Embed *text* using Google text-embedding-004.
+        Embed *text* using Google gemini-embedding-2.
         Returns a list of 768 floats. No local model download.
         """
-        import google.generativeai as genai
+        from google import genai
+        from google.genai import types
 
         api_key = os.getenv("GOOGLE_API_KEY")
         if not api_key:
             raise RuntimeError(
                 "GOOGLE_API_KEY is required for VECTOR_BACKEND=pgvector embeddings"
             )
-        genai.configure(api_key=api_key)
-        result = genai.embed_content(
-            model="models/text-embedding-004",
-            content=text,
+        client = genai.Client(api_key=api_key)
+        result = client.models.embed_content(
+            model="gemini-embedding-2",
+            contents=text,
+            config=types.EmbedContentConfig(output_dimensionality=768)
         )
-        return result["embedding"]   # list[float], len == 768
+        return result.embeddings[0].values   # list[float], len == 768
 
     @staticmethod
     def _vec_literal(embedding: List[float]) -> str:
@@ -165,7 +179,7 @@ class _PgVectorStore:
         Exact duplicate content (by text equality) is skipped.
         Makes one Google embedding API call per unique document.
         """
-        import psycopg2.extras
+        import json as _json
 
         conn = self._connect()
         try:
@@ -173,12 +187,14 @@ class _PgVectorStore:
                 for doc in documents:
                     embedding = self._embed(doc.page_content)
                     vec_lit = self._vec_literal(embedding)
-                    meta = psycopg2.extras.Json(doc.metadata or {})
+                    # psycopg v3 does not ship a Json wrapper; pass serialised
+                    # JSON string with an explicit cast so the type is unambiguous.
+                    meta = _json.dumps(doc.metadata or {})
                     # Skip if identical content already stored
                     cur.execute(
                         """
                         INSERT INTO rag_documents (content, embedding, metadata)
-                        SELECT %s, %s::vector, %s
+                        SELECT %s, %s::vector, %s::jsonb
                         WHERE NOT EXISTS (
                             SELECT 1 FROM rag_documents WHERE content = %s
                         )
@@ -237,7 +253,7 @@ def create_vector_store() -> VectorStore:
     vector_backend: str = os.getenv("VECTOR_BACKEND", "fake")
 
     if vector_backend == "pgvector":
-        log.info("[vector_store] Backend → pgvector (Google text-embedding-004)")
+        log.info("[vector_store] Backend → pgvector (Google gemini-embedding-2)")
         return _PgVectorStore()
 
     log.info("[vector_store] Backend → InMemoryVectorStore + FakeEmbeddings")

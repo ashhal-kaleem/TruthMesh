@@ -13,7 +13,7 @@ python-whois
 # selenium removed: replaced with requests+BeautifulSoup for Render compatibility
 
 # LLM API clients
-google-generativeai
+
 google-genai
 ollama
 
@@ -45,7 +45,9 @@ python-multipart
 
 # Database (PostgreSQL + ORM)
 sqlalchemy
-psycopg2-binary
+psycopg2-binary        # SQLAlchemy / ORM
+psycopg[binary]        # pgvector backend (_PgVectorStore) — psycopg v3 handles
+                       # Supabase transaction pooler (PgBouncer) correctly
 
 # Authentication
 python-jose[cryptography]
@@ -55,4 +57,5 @@ bcrypt<5  # passlib 1.7.x incompatible with bcrypt 5.x
 # Vector store (production — set VECTOR_BACKEND=pgvector to activate)
 # Requires DATABASE_URL pointing to a PostgreSQL instance with pgvector
 # (e.g. Supabase) and GOOGLE_API_KEY.
-# No extra pip packages needed (uses psycopg2-binary & google-generativeai).
+# Uses psycopg (v3) for the pooler connection; psycopg2 is retained for
+# SQLAlchemy only.
