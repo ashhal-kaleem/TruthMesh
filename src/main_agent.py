@@ -16,7 +16,7 @@ Total successful LLM calls per /check_claim request: exactly 2.
 Groq fallback policy
 ────────────────────
 Primary LLM: Gemini.
-Fallback LLM: Groq (llama-3.3-70b-versatile) — activated per-call only when
+Fallback LLM: Groq (openai/gpt-oss-120b) — activated per-call only when
   Gemini raises a quota / rate-limit / provider-unavailable error.
 
 Rules:
@@ -94,7 +94,7 @@ def _get_groq_llm(temperature: float = 0.2):
         return None
     from langchain_groq import ChatGroq  # lazy import — not required at startup
     return ChatGroq(
-        model="llama-3.3-70b-versatile",
+        model="openai/gpt-oss-120b",
         api_key=groq_key,
         temperature=temperature,
     )
