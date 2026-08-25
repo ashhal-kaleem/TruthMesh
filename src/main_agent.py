@@ -156,7 +156,20 @@ def _invoke_with_fallback(primary_llm, schema, messages, *, has_image: bool, tem
             "Gemini error: %s", gemini_exc
         )
         # Groq call: any failure here propagates normally (no double-fallback).
-        return groq_llm.with_structured_output(schema).invoke(messages)
+        try:
+            return groq_llm.with_structured_output(schema).invoke(messages)
+        except Exception as groq_exc:
+            import traceback
+            cause = getattr(groq_exc, "__cause__", None)
+            context = getattr(groq_exc, "__context__", None)
+            logging.error(
+                "[fallback] Groq call failed. "
+                f"Exception: {type(groq_exc).__name__}: {groq_exc}\n"
+                f"__cause__: {type(cause).__name__ if cause else None}: {cause}\n"
+                f"__context__: {type(context).__name__ if context else None}: {context}\n"
+                f"Traceback:\n{traceback.format_exc()}"
+            )
+            raise
 
 
 # ── Shared state ──────────────────────────────────────────────────────────────
