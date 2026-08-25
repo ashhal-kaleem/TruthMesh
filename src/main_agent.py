@@ -88,15 +88,23 @@ def _get_groq_llm(temperature: float = 0.2):
     """
     Build a Groq ChatGroq instance if GROQ_API_KEY is set, otherwise None.
     Raises ImportError if langchain-groq is not installed.
+
+    connect_timeout=30s: the groq SDK's _DefaultHttpxClient uses
+    DEFAULT_TIMEOUT(connect=5s) which is too tight for Render Free cold-starts
+    (SSL handshake to api.groq.com can exceed 5s under shared-infra load).
+    Passing an explicit httpx.Timeout via request_timeout overrides the
+    client-level default and prevents spurious APIConnectionError on first use.
     """
     groq_key = os.getenv("GROQ_API_KEY")
     if not groq_key:
         return None
+    import httpx
     from langchain_groq import ChatGroq  # lazy import — not required at startup
     return ChatGroq(
         model="llama-3.3-70b-versatile",
         api_key=groq_key,
         temperature=temperature,
+        request_timeout=httpx.Timeout(connect=30.0, read=60.0, write=60.0, pool=60.0),
     )
 
 
