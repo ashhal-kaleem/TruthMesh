@@ -101,7 +101,7 @@ def _get_groq_llm(temperature: float = 0.2):
     import httpx
     from langchain_groq import ChatGroq  # lazy import — not required at startup
     return ChatGroq(
-        model="llama-3.3-70b-versatile",
+        model="openai/gpt-oss-120b",
         api_key=groq_key,
         temperature=temperature,
         request_timeout=httpx.Timeout(connect=30.0, read=60.0, write=60.0, pool=60.0),
